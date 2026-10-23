@@ -36,12 +36,12 @@ No Python, no account, no network required. The index, thumbnails and trash are 
 
 | Library · grid | Library · timeline |
 |:---:|:---:|
-| ![Library grid](docs/screenshots/01-library-grid.png) | ![Library timeline](docs/screenshots/02-library-timeline.png) |
+| ![Library grid](docs/screenshots/01-library-grid-synth.png) | ![Library timeline](docs/screenshots/02-library-timeline-synth.png) |
 | Adaptive square grid, sticky date sections, quality scores | Jump to any year/month on the left, infinite scrolling on the right |
 
 | Watch-face view | Watch-face view · center lens |
 |:---:|:---:|
-| ![Watch-face view](docs/screenshots/03-orb-view.png) | ![Center lens](docs/screenshots/04-orb-lens.png) |
+| ![Watch-face view](docs/screenshots/03-orb-view-synth.png) | ![Center lens](docs/screenshots/04-orb-lens-synth.png) |
 | A draggable honeycomb photo wall | Center auto-enlarges, edges fade out, paging at the edges |
 
 ## Features

@@ -37,12 +37,12 @@
 
 | 图库 · 网格 | 图库 · 时间线 |
 |:---:|:---:|
-| ![图库网格](docs/screenshots/01-library-grid.png) | ![图库时间线](docs/screenshots/02-library-timeline.png) |
+| ![图库网格](docs/screenshots/01-library-grid-synth.png) | ![图库时间线](docs/screenshots/02-library-timeline-synth.png) |
 | 正方形自适应网格、粘性日期分组、画质角标 | 左侧按年月直达，右侧无限流滚动 |
 
 | 表盘视图 | 表盘视图 · 中心放大 |
 |:---:|:---:|
-| ![表盘视图](docs/screenshots/03-orb-view.png) | ![表盘中心放大](docs/screenshots/04-orb-lens.png) |
+| ![表盘视图](docs/screenshots/03-orb-view-synth.png) | ![表盘中心放大](docs/screenshots/04-orb-lens-synth.png) |
 | 可拖动的蜂窝照片墙 | 中心自动放大、边缘渐隐，拖到边缘自动加载下一页 |
 
 ## 功能特性
