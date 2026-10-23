@@ -1,167 +1,207 @@
-/* 环形照片布局（Apple Watch 式）：中心精选最大最清晰，外圈逐级变小、
- * 变淡并轻微虚化；整张圆可以拖动旋转，松手带惯性，滚轮（触控板）缩放。
+/* 照片「表盘」视图：可以拖着走的蜂窝网格，靠近画面中心的照片自动放大。
  *
- * 所有位置都由 requestAnimationFrame 里写 transform 完成，不碰 left/top，
- * 因此 100 个节点也只在拖动/缩放时才产生合成层更新，静态时零开销。
+ * 不是固定 101 张的转盘 —— 照片按行排成一张大平面，鼠标/手指拖动改变
+ * panX/panY，像拖动一张无限大的照片墙；每帧只渲染可视范围内的节点，
+ * 拖到边缘时自动向接口要下一页，所以两万张也能一直看下去。
+ * 画面中心按距离做一个透镜：越靠中心越大、越清晰，越靠边越小、越淡。
  */
 (function () {
-  // radius：相对半径（0 为圆心）；size：基准像素；speed：拖动时的跟手系数。
-  // 半径与尺寸是按「相邻两圈刚好不压住」算过的：改其中一个就要连着改另一个。
-  const RINGS = [
-    { r: 0.000, size: 176, opacity: 1.00, blur: 0.0, speed: 0.00 },
-    { r: 0.320, size: 102, opacity: 0.98, blur: 0.0, speed: 0.32 },
-    { r: 0.530, size: 77, opacity: 0.90, blur: 0.3, speed: 0.55 },
-    { r: 0.700, size: 59, opacity: 0.76, blur: 0.7, speed: 0.75 },
-    { r: 0.840, size: 46, opacity: 0.58, blur: 1.2, speed: 0.95 },
-    { r: 0.950, size: 36, opacity: 0.40, blur: 1.8, speed: 1.10 },
-  ];
-  const COUNTS = [1, 6, 12, 20, 28, 34];
-  const CAP = COUNTS.reduce((a, b) => a + b, 0);
-  const REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const PAGE_SIZE = 200;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  let cur = null;                       // 当前挂载的实例，同一时间只会有一个
 
-  function render(grid, items, opts = {}) {
-    // 同一个容器再次渲染（例如换月份、换筛选）时，先把上一轮的动画循环停掉
-    if (grid._orbStop) { grid._orbStop(); grid._orbStop = null; }
+  function mount(grid, opts) {
+    if (cur && cur.stop) cur.stop();
     grid.innerHTML = "";
-    const shown = items.slice(0, CAP);
-    if (!shown.length) {
-      grid.innerHTML = '<div class="empty"><b>这里还没有照片</b></div>';
-      return;
-    }
-
-    // 精选（收藏或高画质）优先占圆心与内圈，其余按原顺序铺外圈
-    const picked = [], others = [];
-    shown.forEach((it, i) => ((it.is_favorite || (it.quality || 0) >= 72) ? picked : others).push(i));
-    const order = picked.concat(others);
-
     const stage = document.createElement("div");
     stage.className = "orb-stage";
-    grid.appendChild(stage);
-
-    // 按环分配：每环的容量固定，不够就往后顺延
-    const take = [];
-    let left = order.length;
-    COUNTS.forEach(n => { const k = Math.min(n, left); take.push(k); left -= k; });
-
-    const nodes = [];
-    let cur = 0;
-    RINGS.forEach((ring, ri) => {
-      const n = take[ri];
-      for (let j = 0; j < n; j++) {
-        const idx = order[cur + j];
-        const it = shown[idx];
-        const node = document.createElement("button");
-        node.className = "orb-node" + (ri === 0 ? " is-center" : "");
-        node.dataset.i = idx;
-        node.style.opacity = ring.opacity;
-        node.style.zIndex = String(90 - ri * 10);
-        if (ring.blur) node.style.filter = `blur(${ring.blur}px)`;
-        node.title = it.name || "";
-        node.innerHTML = `<img src="/api/thumb/${it.id}?size=s" alt="" decoding="async">`
-          + (it.is_favorite ? '<span class="orb-fav">♥</span>' : "");
-        stage.appendChild(node);
-        nodes.push({ node, ring: ri, base: (j / n) * Math.PI * 2 + ri * 0.42, sz: ring.size });
-      }
-      cur += n;
-    });
-
     const hint = document.createElement("div");
     hint.className = "orb-hint";
-    hint.textContent = REDUCE ? "" : "拖动旋转 · 滚轮缩放";
+    hint.textContent = "拖动浏览 · 中心自动放大 · 点击打开";
     const cap = document.createElement("div");
     cap.className = "orb-cap";
-    cap.textContent = items.length > CAP ? `共 ${items.length} 张 · 环形展示前 ${CAP} 张` : "";
-    grid.append(hint, cap);
+    grid.append(stage, hint, cap);
 
-    const rot = RINGS.map(() => 0);
-    let vel = 0, zoom = 1, tzoom = 1, raf = 0, drag = false;
-    let lastX = 0, moved = 0, lastT = 0;
-    let unit = 1;
-    let ro = null, sizeRaf = 0;
+    const st = {
+      grid, stage, cap,
+      items: (opts.items || []).slice(),
+      total: Math.max(opts.total || 0, (opts.items || []).length),
+      pageSize: opts.pageSize || PAGE_SIZE,
+      loadPage: opts.loadPage || null,
+      onOpen: opts.onOpen || null,
+      nodes: new Map(),
+      panX: 0, panY: 0, vx: 0, vy: 0,
+      dragging: false, moved: 0, lastX: 0, lastY: 0, lastT: 0,
+      raf: 0, loading: false,
+      size: 92, colStep: 96, rowStep: 84, pad: 24, cols: 8,
+      ro: null, sizeRaf: 0,
+    };
+    cur = st;
 
-    function applySizes() {
-      const w = grid.clientWidth || 700;
-      // 小窗口下缩得比 0.55 更小：外圈 34 张的周长是固定的，
-      // 节点不跟着缩就会互相压住 —— 之前「挤在一起」就是没有这层比例。
-      unit = clamp(w / 900, 0.30, 1.2);
-      nodes.forEach(o => {
-        o.sz = Math.round(RINGS[o.ring].size * unit);
-        o.node.style.width = o.sz + "px";
-        o.node.style.height = o.sz + "px";
+    function measure() {
+      const w = grid.clientWidth, h = grid.clientHeight;
+      st.size = clamp(Math.min(w / 9.5, h / 6.2), 56, 124);
+      st.colStep = st.size * 1.04;
+      st.rowStep = st.size * 0.88;
+      st.pad = st.size * 0.55;
+      st.cols = Math.max(4, Math.floor((w - st.pad * 2) / st.colStep));
+      st.nodes.forEach(o => {
+        o.el.style.width = o.el.style.height = st.size + "px";
       });
-      draw();
+    }
+
+    function plane() {
+      const rows = Math.ceil(st.items.length / st.cols);
+      return {
+        rows,
+        width: st.pad * 2 + st.cols * st.colStep + st.colStep * 0.5,
+        height: st.pad * 2 + rows * st.rowStep + st.rowStep * 0.5,
+      };
+    }
+
+    function clampPan() {
+      const w = grid.clientWidth, h = grid.clientHeight;
+      const p = plane();
+      st.panX = clamp(st.panX, Math.min(0, w - p.width), 0);
+      st.panY = clamp(st.panY, Math.min(0, h - p.height), 0);
+    }
+
+    function makeNode(idx, it) {
+      const el = document.createElement("button");
+      el.className = "orb-node";
+      el.dataset.i = String(idx);
+      el.style.width = el.style.height = st.size + "px";
+      el.innerHTML = `<img src="/api/thumb/${it.id}?size=s" alt="" decoding="async">`;
+      st.stage.appendChild(el);
+      return { el, it };
     }
 
     function draw() {
       const w = grid.clientWidth, h = grid.clientHeight;
-      if (!w || !h) {
-        // 窗口被遮挡/刚插入时尺寸可能是 0，别把节点全丢在左上角：
-        // 稍后重试一次（用 setTimeout，rAF 在隐藏窗口里不触发）
-        clearTimeout(grid._orbRetry);
-        grid._orbRetry = setTimeout(() => { if (grid.isConnected) applySizes(); }, 120);
-        return;
-      }
-      const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2;
-      nodes.forEach(o => {
-        const ring = RINGS[o.ring];
-        const ang = o.base + rot[o.ring];
-        const x = Math.cos(ang) * R * ring.r * zoom;
-        const y = Math.sin(ang) * R * ring.r * zoom;
-        o.node.style.transform =
-          `translate3d(${(cx + x - o.sz / 2).toFixed(1)}px, ` +
-          `${(cy + y - o.sz / 2).toFixed(1)}px, 0) scale(${zoom.toFixed(3)})`;
+      if (!w || !h) return;
+      const p = plane();
+      const rowTop = Math.floor((-st.panY - st.pad) / st.rowStep) - 1;
+      const rowBottom = rowTop + Math.ceil(h / st.rowStep) + 3;
+      const first = Math.max(0, rowTop * st.cols);
+      const last = Math.min(st.items.length, (rowBottom + 1) * st.cols);
+
+      // 移除跑出可视范围（含一行余量）的节点，避免无限堆积 DOM
+      st.nodes.forEach((o, idx) => {
+        if (idx < first - st.cols * 2 || idx > last + st.cols * 2) {
+          o.el.remove();
+          st.nodes.delete(idx);
+        }
       });
+
+      const cx = w / 2, cy = h / 2;
+      const R = Math.min(w, h) * 0.46;
+      for (let idx = first; idx < last; idx++) {
+        const it = st.items[idx];
+        if (!it) continue;
+        let o = st.nodes.get(idx);
+        if (!o) {
+          o = makeNode(idx, it);
+          st.nodes.set(idx, o);
+        }
+        const row = Math.floor(idx / st.cols);
+        const col = idx % st.cols;
+        const x = st.panX + st.pad + col * st.colStep + (row % 2 ? st.colStep * 0.5 : 0);
+        const y = st.panY + st.pad + row * st.rowStep;
+        // 透镜：离画面中心越近，放得越大、越不透明
+        const d = Math.hypot(x + st.size / 2 - cx, y + st.size / 2 - cy);
+        const lens = clamp(1 - d / R, 0, 1);
+        const scale = 0.68 + 0.72 * Math.pow(lens, 1.45);
+        o.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+        o.el.style.opacity = (0.34 + 0.66 * Math.pow(lens, 1.05)).toFixed(3);
+        o.el.style.zIndex = String(10 + Math.round(scale * 10));
+      }
+      st.cap.textContent = st.items.length < st.total
+        ? `共 ${st.total} 张 · 拖动加载更多（已载入 ${st.items.length} 张）`
+        : `共 ${st.total} 张`;
+    }
+
+    function schedule() {
+      if (st.raf) return;
+      st.raf = requestAnimationFrame(step);
     }
 
     function step() {
-      raf = 0;
-      if (!grid.isConnected) { if (ro) ro.disconnect(); return; }
-      if (!drag && Math.abs(vel) > 0.0004) {
-        for (let i = 1; i < RINGS.length; i++) rot[i] += vel * RINGS[i].speed;
-        vel *= REDUCE ? 0 : 0.945;          // 松手后的惯性衰减
-      } else if (!drag) {
-        vel = 0;
+      st.raf = 0;
+      if (!grid.isConnected) { stop(); return; }
+      if (!st.dragging) {
+        if (Math.abs(st.vx) > 0.05 || Math.abs(st.vy) > 0.05) {
+          st.panX += st.vx; st.panY += st.vy;
+          st.vx *= 0.93; st.vy *= 0.93;
+          clampPan();
+          maybeLoad();
+        } else {
+          st.vx = st.vy = 0;
+        }
       }
-      if (Math.abs(zoom - tzoom) > 0.0015) zoom += (tzoom - zoom) * 0.18;
       draw();
-      if ((!drag && Math.abs(vel) > 0.0004) || Math.abs(zoom - tzoom) > 0.0015) schedule();
+      if (Math.abs(st.vx) > 0.05 || Math.abs(st.vy) > 0.05 || st.dragging) schedule();
     }
-    function schedule() { if (!raf) raf = requestAnimationFrame(step); }
+
+    async function maybeLoad() {
+      if (st.loading || !st.loadPage || st.items.length >= st.total) return;
+      const h = grid.clientHeight;
+      const p = plane();
+      const bottom = Math.min(0, h - p.height);
+      const nearBottom = st.panY <= bottom + st.rowStep * 3;
+      // 照片墙还很长、又没拖到底部附近时，先不打扰接口
+      if (p.height > h + st.rowStep * 3 && !nearBottom) return;
+      st.loading = true;
+      const page = Math.floor(st.items.length / st.pageSize) + 1;
+      try {
+        const arr = await st.loadPage(page);
+        if (!arr || !arr.length) { st.total = st.items.length; return; }
+        st.items = st.items.concat(arr);
+        schedule();
+      } catch (e) {
+        // 加载失败不打断浏览，下一次拖动再试
+      } finally {
+        st.loading = false;
+      }
+    }
 
     function down(e) {
       if (e.button !== undefined && e.button !== 0) return;
-      drag = true; moved = 0; lastX = e.clientX; vel = 0;
-      lastT = performance.now();
+      st.dragging = true; st.moved = 0;
+      st.lastX = e.clientX; st.lastY = e.clientY;
+      st.lastT = performance.now();
+      st.vx = st.vy = 0;
       grid.classList.add("dragging");
       try { grid.setPointerCapture(e.pointerId); } catch (_) {}
     }
     function move(e) {
-      if (!drag) return;
-      const dx = e.clientX - lastX;
-      lastX = e.clientX;
-      lastT = performance.now();
-      moved += Math.abs(dx);
-      const R = Math.max(220, Math.min(grid.clientWidth, grid.clientHeight) / 2);
-      const d = (dx / R) * 1.35;
-      for (let i = 1; i < RINGS.length; i++) rot[i] += d * RINGS[i].speed;
-      vel = d;
+      if (!st.dragging) return;
+      const dx = e.clientX - st.lastX, dy = e.clientY - st.lastY;
+      st.lastX = e.clientX; st.lastY = e.clientY;
+      st.lastT = performance.now();
+      st.moved += Math.abs(dx) + Math.abs(dy);
+      st.panX += dx; st.panY += dy;
+      st.vx = dx; st.vy = dy;
+      clampPan();
+      maybeLoad();
       schedule();
       e.preventDefault();
     }
     function up(e) {
-      if (!drag) return;
-      drag = false;
-      // 停手超过 90ms 再松开，不该继续滑 —— 否则轻轻一放也会甩出去
-      if (performance.now() - lastT > 90) vel = 0;
+      if (!st.dragging) return;
+      st.dragging = false;
+      if (performance.now() - st.lastT > 90) st.vx = st.vy = 0;
       grid.classList.remove("dragging");
       try { grid.releasePointerCapture(e.pointerId); } catch (_) {}
       schedule();
     }
     function wheel(e) {
-      if (!e.deltaY) return;
+      if (!e.deltaY && !e.deltaX) return;
       e.preventDefault();
-      tzoom = clamp(tzoom * (1 - e.deltaY * 0.0009), 0.72, 1.32);
+      st.panX -= e.deltaX;
+      st.panY -= e.deltaY;
+      clampPan();
+      maybeLoad();
+      st.vx = st.vy = 0;
       schedule();
     }
 
@@ -170,28 +210,41 @@
     grid.addEventListener("pointerup", up);
     grid.addEventListener("pointercancel", up);
     grid.addEventListener("wheel", wheel, { passive: false });
-    // 拖动超过 8px 就当成旋转，不再触发打开照片
     grid.addEventListener("click", e => {
-      const node = e.target.closest(".orb-node");
-      if (!node || moved > 8) return;
-      if (opts.onOpen) opts.onOpen(Number(node.dataset.i));
+      const n = e.target.closest(".orb-node");
+      if (!n) return;
+      if (st.moved > 8) return;          // 拖完手滑一下，不算点击
+      if (st.onOpen) st.onOpen(Number(n.dataset.i));
     });
 
-    grid._orbStop = () => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = 0;
-      drag = false;
-      clearTimeout(grid._orbRetry);
-      if (ro) ro.disconnect();
-    };
+    function stop() {
+      if (st.raf) cancelAnimationFrame(st.raf);
+      st.raf = 0;
+      if (st.ro) st.ro.disconnect();
+      clearTimeout(st.sizeRaf);
+    }
+    st.stop = stop;
 
-    ro = new ResizeObserver(() => {
-      if (sizeRaf) return;
-      sizeRaf = requestAnimationFrame(() => { sizeRaf = 0; applySizes(); });
+    st.ro = new ResizeObserver(() => {
+      if (st.sizeRaf) return;
+      st.sizeRaf = requestAnimationFrame(() => {
+        st.sizeRaf = 0;
+        measure();
+        clampPan();
+        draw();
+      });
     });
-    ro.observe(grid);
-    applySizes();
+    st.ro.observe(grid);
+
+    measure();
+    // 初始把第一排放在画面上部，留一点上边距
+    st.panX = Math.min(0, (grid.clientWidth - plane().width) / 2);
+    clampPan();
+    draw();
   }
 
-  window.OrbLayout = { render, CAP };
+  window.OrbLayout = {
+    mount,
+    items: () => (cur ? cur.items : []),
+  };
 })();

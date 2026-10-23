@@ -594,14 +594,40 @@ async function gridView(v) {
     const grid = $("#grid");
     const my = S.req;
     const url = new URL(buildQuery(v, 1), location.origin);
-    url.searchParams.set("page_size", String(Math.max(S.pageSize, OrbLayout.CAP)));
+    url.searchParams.set("page_size", "200");
     // 先让占位转圈上屏，再发请求。这里不能用 requestAnimationFrame：
     // 窗口被遮挡或最小化时 rAF 会被浏览器暂停，切布局就会永远停在这个圈上。
     await new Promise(r => setTimeout(r, 0));
     const d = await api(url.pathname + url.search);
     if (my !== S.req || !grid.isConnected) return;      // 已经切走了，别覆盖新页面
+    if (!d.items.length) {
+      grid.innerHTML = `<div class="empty"><b>这里还没有照片</b>
+        点右上角「导入」选择照片文件夹</div>`;
+      return;
+    }
     S.items = d.items; S.viewItems = d.items; S.total = d.total; S.page = d.page;
-    OrbLayout.render(grid, d.items, { onOpen: i => openViewer(S.viewItems, i) });
+    const loadPage = async page => {
+      if (my !== S.req) return [];
+      const u = new URL(buildQuery(v, 1), location.origin);
+      u.searchParams.set("page_size", "200");
+      u.searchParams.set("page", String(page));
+      const r = await api(u.pathname + u.search);
+      S.total = r.total;
+      return r.items;
+    };
+    OrbLayout.mount(grid, {
+      items: d.items, total: d.total, pageSize: 200, loadPage,
+      onOpen: i => {
+        const it = OrbLayout.items()[i];
+        if (!it) return;
+        if (S.selMode) {
+          S.sel.has(it.id) ? S.sel.delete(it.id) : S.sel.add(it.id);
+          syncSel();
+          return;
+        }
+        openViewer(OrbLayout.items(), i);
+      },
+    });
     markLoadedImages();
     return;
   }
@@ -714,6 +740,7 @@ function bindTiles(root) {
   root.querySelectorAll(".tile:not([data-bound])").forEach(el => {
     el.dataset.bound = "1";
     el.onclick = e => {
+      if (Date.now() < suppressClickUntil) return;   // 刚拖完框选，别把落点那张取消掉
       // 选择态下点磁贴只切换勾选，绝不打开查看器
       if (S.selMode) { tileToggle(Number(el.dataset.i), e); return; }
       openViewer(S.viewItems, Number(el.dataset.i));
@@ -728,7 +755,17 @@ function renderTiles(items, opt = {}) {
   if (S.layout === "round") {
     grid.classList.add("orb-wrap");
     S.viewItems = items;
-    OrbLayout.render(grid, items, { onOpen: i => openViewer(S.viewItems, i) });
+    OrbLayout.mount(grid, { items, total: items.length,
+      onOpen: i => {
+        const it = items[i];
+        if (!it) return;
+        if (S.selMode) {
+          S.sel.has(it.id) ? S.sel.delete(it.id) : S.sel.add(it.id);
+          syncSel();
+          return;
+        }
+        openViewer(items, i);
+      } });
     return;
   }
   grid.classList.remove("orb-wrap");
@@ -785,6 +822,12 @@ function syncSel() {
     const it = S.viewItems[Number(el.dataset.i)];
     el.classList.toggle("sel", !!it && S.sel.has(it.id));
   });
+  // 表盘视图里的照片也要跟着显示选中状态
+  const orbItems = window.OrbLayout ? OrbLayout.items() : [];
+  $$("#grid .orb-node").forEach(el => {
+    const it = orbItems[Number(el.dataset.i)];
+    el.classList.toggle("sel", !!it && S.sel.has(it.id));
+  });
 }
 
 function tileToggle(i, e) {
@@ -826,13 +869,15 @@ async function selectAll() {
   } catch (e) { toast("全选失败：" + esc(e)); }
 }
 
-/* 拖拽框选：只在磁贴之间的空白处起手，命中矩形范围的磁贴并入已选 */
+/* 拖拽框选：选择模式下可以从任意位置起手（包括照片上），拖出一个矩形批量选中 */
 let boxSel = null;
+let suppressClickUntil = 0;
 function boxStart(e) {
   if (!S.selMode || e.button !== 0) return;
   const grid = $("#grid");
   if (!grid || !grid.contains(e.target)) return;
-  if (e.target.closest(".tile") || e.target.closest(".day-head")) return;
+  if (grid.classList.contains("orb-wrap")) return;   // 表盘视图拖动是浏览照片，不是框选
+  if (e.target.closest(".day-head")) return;
   boxSel = { x: e.clientX, y: e.clientY, base: new Set(S.sel), moved: false, el: null };
   window.addEventListener("pointermove", boxMove);
   window.addEventListener("pointerup", boxEnd);
@@ -865,6 +910,8 @@ function boxEnd() {
   window.removeEventListener("pointermove", boxMove);
   window.removeEventListener("pointerup", boxEnd);
   if (boxSel && boxSel.el) boxSel.el.remove();
+  // 拖出过矩形就屏蔽随后的 click，避免手指抬起时又把起手那张取消掉
+  if (boxSel && boxSel.moved) suppressClickUntil = Date.now() + 250;
   boxSel = null;
   syncSel();
 }
