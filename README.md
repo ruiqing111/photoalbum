@@ -9,13 +9,19 @@
 
 ## 下载即用
 
-**[⬇ 下载 Windows 便携版](https://github.com/ruiqing111/photoalbum/releases/latest)**（Release 里的 `PhotoAlbum-*.exe`）
+[![Download for Windows](https://img.shields.io/badge/Download-Windows%20.exe-2ea44f?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ruiqing111/photoalbum/releases/latest)
+
+在 [Releases](https://github.com/ruiqing111/photoalbum/releases/latest) 里选择：
+
+| 文件 | 说明 |
+|---|---|
+| `PhotoAlbum-1.2.2.exe` | 便携版，单文件，**下载后双击直接打开即用**（推荐） |
+| `PhotoAlbum-Setup-1.2.2.exe` | 安装版，创建桌面快捷方式与卸载项 |
 
 下载后**双击 exe 直接打开就能用**：单文件、绿色便携，不需要安装 Python、不需要注册账号、不需要联网。
 索引、缩略图、回收站等数据全部生成在 exe 同级的 `photoalbum_data/` 目录里；把这个文件夹和 exe 一起拷到移动硬盘或另一台电脑，就能接着用。
 
 > Windows 第一次运行未签名 exe 时会弹 SmartScreen 提示，点「更多信息 → 仍要运行」即可。
-> Release 页同时提供安装版 `PhotoAlbum-Setup-*.exe`，适合需要桌面快捷方式和卸载项的场景。
 
 想先看看效果，可以导入仓库里的 [`sample_photos/`](sample_photos/)（54 张纯合成演示图，不含任何真实照片）。
 
