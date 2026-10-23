@@ -73,7 +73,6 @@ const IC = {
   trash: svg(`<path d="M4 7h16M9 7V5h6v2M6.5 7l.9 12h9.2l.9-12M10 11v5M14 11v5"/>`),
   events: svg(`<rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/>`),
   hidden: svg(`<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/><path d="M4 4l16 16"/>`),
-  junk: svg(`<path d="M5 20v-7.5a7 7 0 0 1 14 0V20l-2.4-1.7L14.3 20 12 18.3 9.7 20 7.4 18.3z"/><circle cx="9.6" cy="10.2" r=".9"/><circle cx="14.4" cy="10.2" r=".9"/>`),
   trips: svg(`<path d="M2 19l20-7-20-7v5l14 2-14 2z"/><path d="M4 19v3M20 19v3"/>`),
 };
 
@@ -88,7 +87,6 @@ const NAV_EXTRA = [
   ["trips", "旅行", IC.trips],
   ["duplicates", "重复照片", IC.dup], ["trash", "最近删除", IC.trash],
   ["events", "事件", IC.events], ["hidden", "隐藏", IC.hidden],
-  ["junk", "非照片", IC.junk],
 ];
 
 /* 主题（风格 / 强调色 / 明暗）由 theme.js 统一管理，这里只取数据与入口 */
@@ -141,7 +139,7 @@ async function renderSide() {
     people: stats.people, places: stats.places, memories: stats.months,
     things: stats.tags, favorites: stats.favorites,
     albums: stats.albums, trash: stats.trash, events: stats.events,
-    hidden: stats.hidden, trips: stats.trips, junk: stats.junk,
+    hidden: stats.hidden, trips: stats.trips,
   };
   const item = ([k, label, icon]) => {
     const on = S.route.view === k || (k === "people" && S.route.view === "person") ||
@@ -187,10 +185,9 @@ async function route() {
     month: monthLabel(S.route.key || "2025-01"), tag: S.route.key || "标签",
     albums: "相册", album: "相册", folders: "文件夹", folder: "文件夹",
     duplicates: "重复照片", trash: "最近删除", events: "事件",
-    trips: "旅行", trip: "旅行篇", hidden: "隐藏", junk: "非照片",
+    trips: "旅行", trip: "旅行篇", hidden: "隐藏",
   };
   $("#view-title").textContent = titles[v] || "照片";
-  $("#sb-photo").hidden = v !== "junk";
   try {
     if (v === "overview") await viewOverview();
     else if (v === "people") await viewPeople();
@@ -209,7 +206,6 @@ async function route() {
     else if (v === "events") await viewEvents();
     else if (v === "trips") await viewTrips();
     else if (v === "trip") await viewTrip(S.route.key);
-    else if (v === "junk") await viewJunk();
     else await gridView(v);
   } catch (e) { content.innerHTML = `<div class="empty"><b>出错了</b>${esc(e)}</div>`; }
   markLoadedImages();
@@ -589,47 +585,6 @@ async function viewTrip(key) {
   renderTiles(d.items, { group: true });
 }
 
-/* ---------------- 非照片（缓存缩略图 / 网页小图） ---------------- */
-async function viewJunk() {
-  content.innerHTML = `<div class="view">
-    <div class="junk-note">
-      <b>这里收起了缓存缩略图</b>
-      <span>从浏览器缓存、系统缩略图里恢复出来的小图会自动收进这里，不再混进照片流。
-      默认操作只移出索引，硬盘上的原文件一个都不会删。</span>
-      <span class="grow"></span>
-      <button class="btn" id="junk-rescan">重新识别</button>
-      <button class="btn" id="junk-remove-all">全部移出图库</button>
-    </div>
-    <div id="grid"></div><div id="sentinel" style="height:40px"></div></div>`;
-  await appendTiles(buildQuery("junk", 1), true);
-  const grid = $("#grid");
-  if (grid && !S.total) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><b>没有发现非照片</b>
-      缓存缩略图会在导入时自动识别，也可以点上方「重新识别」再扫一遍</div>`;
-  }
-  observeMore("junk");
-  $("#junk-rescan").onclick = async () => {
-    try {
-      const r = await post("/api/junk/rescan");
-      toast(`重新识别完成：新标记 ${r.marked} 张，共 ${r.total} 张非照片`, 5000);
-      route(); renderSide();
-    } catch (e) { toast("识别失败：" + esc(e)); }
-  };
-  $("#junk-remove-all").onclick = async () => {
-    if (!S.total) return;
-    if (!confirm(`把这里 ${S.total} 张全部移出图库？\n`
-      + "只删索引和缓存缩略图，硬盘上的原文件不会被删除，随时可以重新导入。")) return;
-    busy(true);
-    try {
-      const d = await api("/api/photos/ids?junk=1");
-      const r = await post("/api/photos/batch/delete", { ids: d.ids, mode: "remove" });
-      busy(false);
-      toast(`已移出 ${r.count} 张（原文件保留）`, 6000);
-      route(); renderSide();
-    } catch (e) { busy(false); toast("移出失败：" + esc(e)); }
-  };
-}
-
 /* ---------------- 网格 / 环形视图 ---------------- */
 async function gridView(v) {
   if (S.layout === "round") {
@@ -666,7 +621,6 @@ function buildQuery(v, page) {
   else if (v === "folder") p.set("dir", S.route.key);
   else if (v === "search") p.set("q", S.route.key);
   else if (v === "hidden") p.set("hidden", "1");
-  else if (v === "junk") p.set("junk", "1");
   return "/api/photos?" + p;
 }
 
@@ -682,7 +636,6 @@ function currentFilter() {
   if (v === "favorites") return { label: "收藏", f: { favorite: 1 } };
   if (v === "video") return { label: "视频", f: { kind: "video" } };
   if (v === "hidden") return { label: "隐藏", f: { hidden: 1 } };
-  if (v === "junk") return { label: "非照片", f: { junk: 1 } };
   if (v === "curated") return { label: "精选", f: { ids: S.curatedIds } };
   return { label: v === "library" ? "整个图库" : "当前视图", f: {} };
 }
@@ -1813,7 +1766,7 @@ $("#layout").onclick = e => {
   // 概览/相册列表/最近删除这类页面没有照片网格，直接切过去会「看起来没反应」；
   // 环形模式在它们上面没有意义，统一送到图库
   const noGrid = ["overview", "people", "places", "memories", "things", "albums",
-    "folders", "duplicates", "trash", "events", "trips", "junk"].includes(S.route.view);
+    "folders", "duplicates", "trash", "events", "trips"].includes(S.route.view);
   if (noGrid && S.layout === "round") { location.hash = "#/library"; return; }
   route();
 };
@@ -2045,17 +1998,6 @@ $("#sb-hide").onclick = async () => {
     route(); renderSide();
   } catch (e) { toast("操作失败：" + esc(e)); }
 };
-/* 非照片页专用：把选中的图恢复成照片（自动识别以后不会再扫回去） */
-$("#sb-photo").onclick = async () => {
-  const ids = selIds();
-  if (!ids.length) return;
-  try {
-    const r = await post("/api/photos/batch/junk", { ids, value: false });
-    toast(`已恢复 ${r.count} 张为照片`);
-    selectMode(false);
-    route(); renderSide();
-  } catch (e) { toast("操作失败：" + esc(e)); }
-};
 $("#sb-move").onclick = () => {
   const ids = selIds();
   if (!ids.length) return;
@@ -2144,9 +2086,8 @@ $("#imp-ok").onclick = async () => {
       }
       clearInterval(timer); busy(false);
       const stopped = s.status === "cancelled";
-      const junkTip = s.junk ? `，其中 ${s.junk} 张疑似缓存缩略图已收进「非照片」` : "";
-      toast((s.message || (stopped ? `已停止导入，已入库的 ${s.new} 张可以直接使用`
-        : `扫描完成：新增 ${s.new} 张，重复跳过 ${s.dups} 张`)) + junkTip, 9000);
+      toast(s.message || (stopped ? `已停止导入，已入库的 ${s.new} 张可以直接使用`
+        : `扫描完成：新增 ${s.new} 张，重复跳过 ${s.dups} 张`), 8000);
       const rows = [
         ...(s.failed || []),
         ...(s.dup_names || []).map(n => ({ name: n, reason: "内容重复，图库里已有这张" })),

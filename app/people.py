@@ -163,7 +163,7 @@ def _features(progress=None, force=False):
     for r in db.q("SELECT photo_id, face_idx, score, size, vec FROM person_emb"):
         cache.setdefault(r["photo_id"], []).append(r)
     rows = db.q("""SELECT id, path, quality FROM photos
-                   WHERE kind='photo' AND hidden=0 AND junk=0 ORDER BY taken_at""")
+                   WHERE kind='photo' ORDER BY taken_at""")
     todo = [r for r in rows if r["id"] not in cache]
     fresh = {}
     if todo:
@@ -291,8 +291,7 @@ def people_list():
 
 def person_photos(person_id):
     rows = db.q("""SELECT p.* FROM person_photos pp JOIN photos p ON p.id=pp.photo_id
-                   WHERE pp.person_id=? AND p.hidden=0 AND p.junk=0
-                   ORDER BY p.taken_at DESC""", (person_id,))
+                   WHERE pp.person_id=? ORDER BY p.taken_at DESC""", (person_id,))
     items = [dict(r) for r in rows]
     for it in items:
         it["tags"] = [t["tag"] for t in db.q(

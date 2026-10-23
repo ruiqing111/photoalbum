@@ -61,8 +61,7 @@ def rebuild(progress=None):
     db.execute("DELETE FROM places")
     db.execute("DELETE FROM photo_places")
     rows = db.q("""SELECT id, gps_lat, gps_lon, quality FROM photos
-                   WHERE gps_lat IS NOT NULL AND gps_lon IS NOT NULL
-                     AND hidden=0 AND junk=0""")
+                   WHERE gps_lat IS NOT NULL AND gps_lon IS NOT NULL""")
     buckets = {}
     for i, r in enumerate(rows):
         name, clat, clon, dist, kind = nearest_city(r["gps_lat"], r["gps_lon"])
@@ -92,6 +91,5 @@ def place_list():
 def place_photos(place_id):
     rows = db.q("""SELECT p.*, pp.distance_km FROM photo_places pp
                    JOIN photos p ON p.id=pp.photo_id
-                   WHERE pp.place_id=? AND p.hidden=0 AND p.junk=0
-                   ORDER BY p.taken_at DESC""", (place_id,))
+                   WHERE pp.place_id=? ORDER BY p.taken_at DESC""", (place_id,))
     return [dict(r) for r in rows]

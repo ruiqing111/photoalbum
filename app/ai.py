@@ -218,7 +218,7 @@ def embed_all():
         return 0
     rows = db.q("""SELECT p.id, p.path FROM photos p
                    LEFT JOIN embeddings e ON e.photo_id=p.id
-                   WHERE e.photo_id IS NULL AND p.kind='photo' AND p.junk=0""")
+                   WHERE e.photo_id IS NULL AND p.kind='photo'""")
     n = 0
     for r in rows:
         v = image_embedding(r["path"])
@@ -235,7 +235,7 @@ def tag_all(progress=None):
     1) 连拍映射一次查进内存，不再每张照片一次 SELECT；
     2) 每 2000 条标签一次 executemany —— 原先 1740 张照片就是 1740 次 commit。
     """
-    rows = db.q("SELECT * FROM photos WHERE kind='photo' AND junk=0")
+    rows = db.q("SELECT * FROM photos WHERE kind='photo'")
     n = len(rows)
     picks = {r["photo_id"]: r["is_pick"] for r in db.q("SELECT photo_id,is_pick FROM bursts")}
     hit = 0
