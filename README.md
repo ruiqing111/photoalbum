@@ -1,8 +1,8 @@
 # 本地 AI 照片相册
 
 纯本地、零账号、离线可用的照片管理工具。界面参考 Apple Photos / Google Photos：
-液态玻璃与深色模式、五种可切换风格、自适应网格与环形视图、粘性日期分组、
-渐进式大图查看器，全部数据只落在程序旁边的 `photoalbum_data/`。
+液态玻璃与深色模式、五种可切换风格、自适应网格与可拖动的表盘照片墙、
+粘性日期分组、渐进式大图查看器，全部数据只落在程序旁边的 `photoalbum_data/`。
 
 ## 快速开始
 
@@ -10,6 +10,11 @@
 py -3 -m pip install -r requirements.txt
 py -3 run.py            # 弹出原生应用窗口；想用浏览器：py -3 run.py --browser
 ```
+
+不想装 Python，可以直接下 Windows 便携版（单文件 exe）：
+[GitHub Releases](https://github.com/ruiqing111/photoalbum/releases/latest) —— exe 与安装包都在里面。
+
+想先看看效果，导入仓库里的 `sample_photos/`（54 张纯合成演示图，不含任何真实照片）。
 
 1. 点右上「导入」，在弹窗里点「＋ 添加文件夹」调起系统文件夹选择框挑目录（可加多个、支持移动硬盘），再点「开始导入」
 2. 点「AI 分析」：打标 → 画质评分 → 连拍精选 → 人物分组 → 地点聚合
