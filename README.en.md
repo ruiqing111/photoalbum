@@ -32,7 +32,7 @@ No Python, no account, no network required. The index, thumbnails and trash are 
 
 ## Screenshots
 
-> Screenshots use a demo library: synthetic scenes plus the author's own photos, with no third-party assets.
+> Screenshots use a demo library made entirely of synthetic images; no real photos or personal data.
 
 | Library · grid | Library · timeline |
 |:---:|:---:|
