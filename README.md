@@ -2,6 +2,8 @@
 
 > 纯本地、零账号、离线可用的 Windows 照片管理工具。索引和缩略图都放在程序旁边，原图一张都不动。
 
+**简体中文 | [English](README.en.md)**
+
 [![Release](https://img.shields.io/github/v/release/ruiqing111/photoalbum?label=release)](https://github.com/ruiqing111/photoalbum/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/ruiqing111/photoalbum/total)](https://github.com/ruiqing111/photoalbum/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows&logoColor=white)](#系统要求)
