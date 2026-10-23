@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -279,6 +280,36 @@ def iter_media(dirs):
                     yield os.path.join(dirpath, fn)
 
 
+_JUNK_NAME = re.compile(r"^(thumbcache|thumbnail|thumbs?|thumb[_-]|资源管理器|临时文件)[_\-]", re.I)
+
+
+def _looks_like_junk(path, name, dirpath, width, height, size):
+    """判断一张图是不是「浏览器缓存/系统缩略图」这类非照片。
+
+    规则分强弱两档，宁可漏判也不误伤正常照片：
+      1) 文件名就是 Windows 缩略图缓存（thumbcache_*/资源管理器_*/临时文件_*）—— 直接算；
+      2) 目录名明确是缩略图恢复/系统缓存/thumbnails —— 只要尺寸不超过 1280 就算；
+      3) 目录名带 cache/temp/thumb 的，再叠加「小尺寸或小文件」才判；
+      4) 没有这层目录线索时，只看「极小图」和「超宽广告横幅」这两种极端情况。
+    误判可以到「非照片」页点「标记为照片」恢复，自动识别之后不会再改它。
+    """
+    m = max(width or 0, height or 0)
+    n = name or ""
+    d = (dirpath or "").lower()
+    if _JUNK_NAME.match(n):
+        return True
+    if any(k in d for k in ("缩略图", "thumbcache", "thumbnails", "系统缓存")):
+        return m <= 1280 if m else True
+    if any(k in d for k in ("\\cache", "/cache", "\\temp", "/temp", "\\tmp", "/tmp", "thumb")):
+        return (m and m <= 512) or (m <= 1280 and size <= 120 * 1024) or not m
+    if m and m <= 200 and size <= 60 * 1024:
+        return True
+    if (m and width and height and m <= 512 and size <= 150 * 1024
+            and m / max(1, min(width, height)) >= 3.2):
+        return True
+    return False
+
+
 def _live_companion(path):
     """找实况照片配对的短视频（同目录、同文件名、视频扩展名）。
 
@@ -321,17 +352,19 @@ def ingest_file(path):
     exist = db.q1("SELECT id FROM photos WHERE path=?", (path,))
     if exist:
         return exist["id"], True
+    junk = 1 if kind == "photo" and _looks_like_junk(
+        path, os.path.basename(path), os.path.dirname(path), width, height, st.st_size) else 0
     cur = db.execute(
         """INSERT OR IGNORE INTO photos(path,name,dir,ext,size,width,height,duration,fps,vcodec,
         taken_at,mtime,hash,
         camera_make,camera_model,lens,focal,aperture,shutter,iso,gps_lat,gps_lon,gps_alt,
-        orientation,kind,added_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        orientation,kind,junk,added_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (path, os.path.basename(path), os.path.dirname(path), ext, st.st_size, width, height,
          exif.get("duration"), exif.get("fps"), exif.get("vcodec"),
          taken, int(st.st_mtime), h, exif.get("camera_make"), exif.get("camera_model"),
          exif.get("lens"), exif.get("focal"), exif.get("aperture"), exif.get("shutter"),
          exif.get("iso"), exif.get("gps_lat"), exif.get("gps_lon"), exif.get("gps_alt"),
-         exif.get("orientation"), kind, int(time.time())),
+         exif.get("orientation"), kind, junk, int(time.time())),
     )
     pid = cur.lastrowid
     if not cur.rowcount:                 # 极小概率的并发同路径写入，按已存在处理
@@ -371,6 +404,27 @@ _scan_running = threading.Event()
 def _wait_scan():
     while _scan_running.is_set():
         time.sleep(0.25)
+
+
+def mark_junk():
+    """给老库补一次「非照片」标记：只写 junk 字段，不动任何文件。
+
+    junk_fix=1 是用户在「非照片」页手动确认过的照片，不再自动改动。
+    返回本次新标记的张数。
+    """
+    rows = db.q("SELECT id,path,name,dir,width,height,size FROM photos "
+                "WHERE kind='photo' AND junk=0 AND junk_fix=0")
+    batch, n = [], 0
+    for r in rows:
+        if _looks_like_junk(r["path"], r["name"], r["dir"], r["width"], r["height"], r["size"] or 0):
+            batch.append((r["id"],))
+            n += 1
+            if len(batch) >= 500:
+                db.executemany("UPDATE photos SET junk=1 WHERE id=?", batch)
+                batch = []
+    if batch:
+        db.executemany("UPDATE photos SET junk=1 WHERE id=?", batch)
+    return n
 
 
 def backfill_live():
@@ -459,6 +513,7 @@ class ScanJob:
         self.dups = 0
         self.errors = 0
         self.speed = 0.0
+        self.junk = 0                   # 本次新导入里被识别为「非照片」的张数
         self.message = ""
         self.started_at = time.time()
         self.finished_at = None
@@ -469,7 +524,7 @@ class ScanJob:
     def to_dict(self):
         d = {k: getattr(self, k) for k in
              ("dirs", "status", "total", "done", "new", "dups", "errors",
-              "speed", "message", "started_at", "finished_at")}
+              "junk", "speed", "message", "started_at", "finished_at")}
         d["speed"] = round(self.speed, 1)
         d["dup_names"] = self.dup_names[:30]
         d["failed"] = self.failed[:30]
@@ -540,6 +595,12 @@ def run_scan(job: ScanJob):
             pass
         db.defer_commits(False)
         _scan_running.clear()
+        try:
+            row = db.q1("SELECT COUNT(*) n FROM photos WHERE junk=1 AND added_at>=?",
+                        (int(job.started_at),))
+            job.junk = row["n"] if row else 0
+        except Exception:
+            pass
         if job.new or job.dups:
             try:
                 db.fts_rebuild()           # 中途停止的照片也要能被搜到

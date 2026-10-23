@@ -70,7 +70,7 @@ def score_all(limit=None, progress=None):
     ver = db.q1("SELECT v FROM meta WHERE k='quality_version'")
     if not ver or ver["v"] != Q_VERSION:
         db.execute("UPDATE photos SET quality=0")
-    rows = db.q("SELECT id,path,width,height FROM photos WHERE kind='photo' AND quality=0")
+    rows = db.q("SELECT id,path,width,height FROM photos WHERE kind='photo' AND junk=0 AND quality=0")
     n = len(rows)
     hit = 0
     buf = []
@@ -95,7 +95,7 @@ def score_all(limit=None, progress=None):
 def group_bursts(gap=3, progress=None):
     """同一相机 3 秒内连拍归为一组，质量最高者为精选代表。"""
     rows = db.q("""SELECT id,path,width,height,taken_at,camera_model,quality FROM photos
-                   WHERE kind='photo' ORDER BY camera_model, taken_at""")
+                   WHERE kind='photo' AND junk=0 ORDER BY camera_model, taken_at""")
     db.execute("DELETE FROM bursts")
     groups, cur, last_key = [], [], None
     for r in rows:

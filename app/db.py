@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS photos(
   kind TEXT DEFAULT 'photo',
   -- hidden=1 只是隐藏显示：照片仍在库里、仍在原位置，随时可以取消隐藏
   hidden INTEGER DEFAULT 0,
+  -- junk=1：浏览器缓存/系统缩略图这类「不是照片」的小图，默认不出现在照片流里。
+  -- junk_fix=1 表示用户手动确认过「这是照片」，自动识别不再改动它。
+  junk INTEGER DEFAULT 0,
+  junk_fix INTEGER DEFAULT 0,
   added_at INTEGER,
   -- 缩略图直方图与平均色：导入时一次算好，查看器切图只读库，不再现场跑 PIL
   hist TEXT, avg_rgb TEXT
@@ -193,7 +197,8 @@ def _migrate(con):
     for col, decl in (("duration", "REAL"), ("fps", "REAL"), ("vcodec", "TEXT"),
                       ("hist", "TEXT"), ("avg_rgb", "TEXT"),
                       ("rotate", "INTEGER DEFAULT 0"), ("is_live", "INTEGER DEFAULT 0"),
-                      ("live_path", "TEXT"), ("hidden", "INTEGER DEFAULT 0")):
+                      ("live_path", "TEXT"), ("hidden", "INTEGER DEFAULT 0"),
+                      ("junk", "INTEGER DEFAULT 0"), ("junk_fix", "INTEGER DEFAULT 0")):
         if col not in have:
             con.execute(f"ALTER TABLE photos ADD COLUMN {col} {decl}")
     # 旧版靠肤色规则存的「人物特征」已被 YuNet+SFace 取代，留着只会误导，直接清掉

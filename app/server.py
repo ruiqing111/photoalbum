@@ -30,6 +30,10 @@ def _warm_worker():
     顺手清掉超过 30 天的回收站条目，并保证每周至少有一份索引快照。
     """
     try:
+        scanner.mark_junk()
+    except Exception:
+        pass
+    try:
         scanner.warm_thumbs()
     except Exception:
         pass
@@ -142,6 +146,7 @@ class ExtractReq(BaseModel):
     dir: str | None = None
     min_quality: float | None = None
     camera: str | None = None
+    junk: int | None = None
 
 
 def _month_range(month):
@@ -358,13 +363,14 @@ def api_photos(q: str | None = None, tag: str | None = None,
                favorite: int | None = None, kind: str | None = None,
                person_id: int | None = None, place_id: int | None = None,
                month: str | None = None, dir: str | None = None, hidden: int = 0,
+               junk: int = 0,
                sort: str = "taken_desc", page: int = 1, page_size: int = 80):
     if month:
         date_from, date_to = _month_range(month)
     return search.search_photos(q=q, tag=tag, date_from=date_from, date_to=date_to,
                                 camera=camera, min_quality=min_quality, favorite=favorite,
                                 kind=kind, person_id=person_id, place_id=place_id,
-                                dir=dir, hidden=hidden, sort=sort, page=page,
+                                dir=dir, hidden=hidden, junk=junk, sort=sort, page=page,
                                 page_size=page_size)
 
 
@@ -374,14 +380,15 @@ def api_photo_ids(q: str | None = None, tag: str | None = None,
                   camera: str | None = None, min_quality: float | None = None,
                   favorite: int | None = None, kind: str | None = None,
                   person_id: int | None = None, place_id: int | None = None,
-                  month: str | None = None, dir: str | None = None, hidden: int = 0):
+                  month: str | None = None, dir: str | None = None, hidden: int = 0,
+                  junk: int = 0):
     """当前筛选下的全部 id（不分页）：前端「全选」用，避免只选到已加载的那几屏。"""
     if month:
         date_from, date_to = _month_range(month)
     return {"ids": search.all_ids(q=q, tag=tag, date_from=date_from, date_to=date_to,
                                   camera=camera, min_quality=min_quality, favorite=favorite,
                                   kind=kind, person_id=person_id, place_id=place_id,
-                                  dir=dir, hidden=hidden)}
+                                  dir=dir, hidden=hidden, junk=junk)}
 
 
 @app.get("/api/timeline")
@@ -654,6 +661,34 @@ def api_batch_hide(req: BatchHideReq):
     return {"count": len(ids), "value": val}
 
 
+@app.post("/api/photos/batch/junk")
+def api_batch_junk(req: BatchHideReq):
+    """把照片标成「非照片」（缓存缩略图/网页小图），或恢复成照片。
+
+    只改索引标记，原文件、缩略图都不动。恢复时写 junk_fix=1，
+    自动识别以后不会再把它扫回「非照片」。
+    """
+    ids = list(dict.fromkeys(req.ids))
+    if not ids:
+        raise HTTPException(400, "没有选中照片")
+    marks = ",".join("?" * len(ids))
+    if req.value:
+        db.execute(f"UPDATE photos SET junk=1, junk_fix=0 WHERE id IN ({marks})", ids)
+        lifecycle.log("junk", f"标记为非照片 {len(ids)} 张", {"ids": ids})
+    else:
+        db.execute(f"UPDATE photos SET junk=0, junk_fix=1 WHERE id IN ({marks})", ids)
+        lifecycle.log("junk", f"恢复为照片 {len(ids)} 张", {"ids": ids})
+    return {"count": len(ids), "value": 1 if req.value else 0}
+
+
+@app.post("/api/junk/rescan")
+def api_junk_rescan():
+    """重新识别一遍缓存缩略图；已手动确认过的照片（junk_fix=1）不会被动。"""
+    n = scanner.mark_junk()
+    total = db.q1("SELECT COUNT(*) c FROM photos WHERE junk=1")["c"]
+    return {"marked": n, "total": total}
+
+
 @app.post("/api/photos/batch/favorite")
 def api_batch_favorite(req: BatchFavReq):
     """批量收藏 / 取消收藏。"""
@@ -835,7 +870,7 @@ def api_extract(req: ExtractReq):
     """把当前筛选结果整理到指定文件夹（复制或剪切，可分子目录）。"""
     kwargs = dict(q=req.q, tag=req.tag, kind=req.kind, favorite=req.favorite,
                   person_id=req.person_id, place_id=req.place_id, dir=req.dir,
-                  min_quality=req.min_quality, camera=req.camera)
+                  min_quality=req.min_quality, camera=req.camera, junk=req.junk)
     if req.month:
         kwargs["date_from"], kwargs["date_to"] = _month_range(req.month)
     try:

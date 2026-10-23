@@ -59,7 +59,7 @@ def album_detail(album_id):
         return None
     items = [dict(r) for r in db.q(
         """SELECT p.* FROM album_photos ap JOIN photos p ON p.id=ap.photo_id
-           WHERE ap.album_id=? AND p.hidden=0 ORDER BY p.taken_at DESC""", (album_id,))]
+           WHERE ap.album_id=? AND p.hidden=0 AND p.junk=0 ORDER BY p.taken_at DESC""", (album_id,))]
     return {"album": dict(a), "items": items}
 
 
@@ -100,7 +100,7 @@ def album_remove(album_id, ids, log_it=True):
 def folder_list():
     """按磁盘目录聚合。路径来自索引，照片本体没有被移动或复制。"""
     rows = db.q("""SELECT dir, COUNT(*) c, COALESCE(SUM(size),0) s
-                   FROM photos WHERE dir IS NOT NULL AND dir!=''
+                   FROM photos WHERE dir IS NOT NULL AND dir!='' AND hidden=0 AND junk=0
                    GROUP BY dir ORDER BY dir""")
     return [dict(r) for r in rows]
 
@@ -144,10 +144,10 @@ def folder_detail(path):
     if not path:
         raise ValueError("缺少文件夹路径")
     items = [dict(r) for r in db.q(
-        """SELECT * FROM photos WHERE dir=? ORDER BY taken_at DESC""", (path,))]
+        """SELECT * FROM photos WHERE dir=? AND hidden=0 AND junk=0 ORDER BY taken_at DESC""", (path,))]
     sub = [dict(r) for r in db.q(
         """SELECT dir, COUNT(*) c FROM photos WHERE dir LIKE ? AND dir!=?
-           GROUP BY dir ORDER BY dir""", (path + "\\%", path))]
+           AND hidden=0 AND junk=0 GROUP BY dir ORDER BY dir""", (path + "\\%", path))]
     return {"path": path, "items": items, "children": sub}
 
 
@@ -156,13 +156,14 @@ def folder_detail(path):
 def duplicates():
     """完全相同内容（快速哈希一致）的组；保留建议按画质、分辨率、体积排序。"""
     groups = db.q("""SELECT hash, COUNT(*) c, SUM(size) s FROM photos
-                     WHERE hash IS NOT NULL AND hidden=0 GROUP BY hash HAVING c>1
+                     WHERE hash IS NOT NULL AND hidden=0 AND junk=0 GROUP BY hash HAVING c>1
                      ORDER BY s DESC""")
     out = []
     for g in groups:
         items = [dict(r) for r in db.q(
             """SELECT id,path,name,dir,size,width,height,taken_at,quality,ext
-               FROM photos WHERE hash=? ORDER BY quality DESC, size DESC""", (g["hash"],))]
+               FROM photos WHERE hash=? AND hidden=0 AND junk=0
+               ORDER BY quality DESC, size DESC""", (g["hash"],))]
         if len(items) < 2:
             continue
         keep = items[0]
@@ -181,17 +182,19 @@ def events(limit=36):
     """
     days = db.q("""SELECT strftime('%Y-%m-%d', taken_at,'unixepoch','localtime') d,
                           COUNT(*) c, MAX(quality) q
-                   FROM photos WHERE taken_at IS NOT NULL AND hidden=0
+                   FROM photos WHERE taken_at IS NOT NULL AND hidden=0 AND junk=0
                    GROUP BY d HAVING c>=5 ORDER BY d DESC LIMIT ?""", (limit,))
     out = []
     for r in days:
         cover = db.q1("""SELECT id FROM photos
                          WHERE strftime('%Y-%m-%d', taken_at,'unixepoch','localtime')=?
+                         AND hidden=0 AND junk=0
                          ORDER BY quality DESC LIMIT 1""", (r["d"],))
         place = db.q1("""SELECT pl.name, COUNT(*) c FROM photos p
                          JOIN photo_places pp ON pp.photo_id=p.id
                          JOIN places pl ON pl.id=pp.place_id
                          WHERE strftime('%Y-%m-%d', p.taken_at,'unixepoch','localtime')=?
+                         AND p.hidden=0 AND p.junk=0
                          GROUP BY pl.name ORDER BY c DESC LIMIT 1""", (r["d"],))
         out.append({"date": r["d"], "count": r["c"],
                     "place": place["name"] if place else None,
@@ -221,7 +224,7 @@ def _trip_clusters():
     只把 >=8 张、跨 >=2 天的簇算作旅行，避免把日常通勤当成旅行。
     """
     rows = db.q("""SELECT id, taken_at, gps_lat, gps_lon
-                   FROM photos WHERE hidden=0 AND kind='photo'
+                   FROM photos WHERE hidden=0 AND junk=0 AND kind='photo'
                      AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL
                      AND taken_at IS NOT NULL ORDER BY taken_at""")
     clusters, cur = [], None

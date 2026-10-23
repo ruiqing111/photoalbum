@@ -6,14 +6,17 @@ from . import ai, db, geo, library, people
 
 def _where(q=None, tag=None, date_from=None, date_to=None, camera=None,
            min_quality=None, favorite=None, kind=None, place_id=None, person_id=None,
-           dir=None, hidden=0):
+           dir=None, hidden=0, junk=0):
     """把筛选参数翻译成 WHERE 子句，供列表查询与「整理到文件夹」共用。
 
     hidden 默认 0：所有常规视图自动过滤掉隐藏照片；「隐藏」页传 1 才看得到。
+    junk 默认 0：缓存缩略图/网页小图同样不进照片流，只在「非照片」页传 1 查看。
     """
     where, args = ["1=1"], []
     if hidden is not None:
         where.append("p.hidden=?"); args.append(1 if hidden else 0)
+    if junk is not None:
+        where.append("p.junk=?"); args.append(1 if junk else 0)
     if kind:
         where.append("p.kind=?"); args.append(kind)
     if dir:
@@ -85,12 +88,12 @@ def collect_rows(ids=None, **filters):
 
 def search_photos(q=None, tag=None, date_from=None, date_to=None, camera=None,
                   min_quality=None, favorite=None, kind=None, place_id=None,
-                  person_id=None, dir=None, hidden=0, sort="taken_desc",
+                  person_id=None, dir=None, hidden=0, junk=0, sort="taken_desc",
                   page=1, page_size=80):
     where, args, semantic_ids = _where(
         q=q, tag=tag, date_from=date_from, date_to=date_to, camera=camera,
         min_quality=min_quality, favorite=favorite, kind=kind,
-        place_id=place_id, person_id=person_id, dir=dir, hidden=hidden)
+        place_id=place_id, person_id=person_id, dir=dir, hidden=hidden, junk=junk)
     order = {
         "taken_desc": "p.taken_at DESC", "taken_asc": "p.taken_at ASC",
         "quality": "p.quality DESC", "size": "p.size DESC",
@@ -133,36 +136,38 @@ def _attach(items):
 
 def timeline():
     return [dict(r) for r in db.q("""SELECT strftime('%Y-%m', taken_at, 'unixepoch', 'localtime') ym,
-        COUNT(*) c, MIN(taken_at) t0 FROM photos WHERE hidden=0
+        COUNT(*) c, MIN(taken_at) t0 FROM photos WHERE hidden=0 AND junk=0
         GROUP BY ym ORDER BY ym DESC""")]
 
 
 def tag_counts():
     return [dict(r) for r in db.q(
-        "SELECT tag, COUNT(*) c FROM tags GROUP BY tag ORDER BY c DESC")]
+        """SELECT t.tag, COUNT(*) c FROM tags t JOIN photos p ON p.id=t.photo_id
+           WHERE p.hidden=0 AND p.junk=0 GROUP BY t.tag ORDER BY c DESC""")]
 
 
 def stats():
-    p = db.q1("SELECT COUNT(*) c, COALESCE(SUM(size),0) s FROM photos WHERE hidden=0")
+    p = db.q1("SELECT COUNT(*) c, COALESCE(SUM(size),0) s FROM photos WHERE hidden=0 AND junk=0")
     return {
         "photos": p["c"], "bytes": p["s"],
         "tags": db.q1("SELECT COUNT(DISTINCT tag) c FROM tags")["c"],
         "bursts": db.q1("SELECT COUNT(DISTINCT group_id) c FROM bursts")["c"],
         "picks": db.q1("SELECT COUNT(*) c FROM bursts WHERE is_pick=1")["c"],
-        "favorites": db.q1("SELECT COUNT(*) c FROM photos WHERE is_favorite=1 AND hidden=0")["c"],
-        "with_gps": db.q1("SELECT COUNT(*) c FROM photos WHERE gps_lat IS NOT NULL AND hidden=0")["c"],
+        "favorites": db.q1("SELECT COUNT(*) c FROM photos WHERE is_favorite=1 AND hidden=0 AND junk=0")["c"],
+        "with_gps": db.q1("SELECT COUNT(*) c FROM photos WHERE gps_lat IS NOT NULL AND hidden=0 AND junk=0")["c"],
         "embeddings": db.q1("SELECT COUNT(*) c FROM embeddings")["c"],
         "people": db.q1("SELECT COUNT(*) c FROM people")["c"],
         "places": db.q1("SELECT COUNT(*) c FROM places")["c"],
-        "videos": db.q1("SELECT COUNT(*) c FROM photos WHERE kind='video' AND hidden=0")["c"],
+        "videos": db.q1("SELECT COUNT(*) c FROM photos WHERE kind='video' AND hidden=0 AND junk=0")["c"],
         "hidden": db.q1("SELECT COUNT(*) c FROM photos WHERE hidden=1")["c"],
-        "live": db.q1("SELECT COUNT(*) c FROM photos WHERE is_live=1 AND hidden=0")["c"],
+        "junk": db.q1("SELECT COUNT(*) c FROM photos WHERE junk=1")["c"],
+        "live": db.q1("SELECT COUNT(*) c FROM photos WHERE is_live=1 AND hidden=0 AND junk=0")["c"],
         "events": db.q1("""SELECT COUNT(*) c FROM (
-              SELECT 1 FROM photos WHERE taken_at IS NOT NULL AND hidden=0
+              SELECT 1 FROM photos WHERE taken_at IS NOT NULL AND hidden=0 AND junk=0
               GROUP BY strftime('%Y-%m-%d', taken_at,'unixepoch','localtime')
               HAVING COUNT(*)>=5)""")["c"],
         "months": db.q1("""SELECT COUNT(DISTINCT strftime('%Y-%m', taken_at,'unixepoch','localtime'))
-              c FROM photos WHERE taken_at IS NOT NULL AND hidden=0""")["c"],
+              c FROM photos WHERE taken_at IS NOT NULL AND hidden=0 AND junk=0""")["c"],
         "albums": db.q1("SELECT COUNT(*) c FROM albums")["c"],
         "trash": db.q1("SELECT COUNT(*) c FROM trash")["c"],
         "trips": len(library.trips()),
@@ -175,9 +180,10 @@ def _cover_of(ids):
     if not ids:
         return None
     marks = ",".join("?" * len(ids))
-    r = db.q1(f"""SELECT id FROM photos WHERE id IN ({marks})
-                  ORDER BY quality DESC LIMIT 1""", ids)
-    return r["id"] if r else None
+    rows = db.q(f"""SELECT id FROM photos WHERE id IN ({marks})
+                    AND hidden=0 AND junk=0
+                    ORDER BY quality DESC LIMIT 1""", ids)
+    return rows[0]["id"] if rows else None
 
 
 def overview():
@@ -201,17 +207,20 @@ def memories():
     """回忆卡片：按月成组 + 按城市成组。"""
     out = []
     for m in db.q("""SELECT strftime('%Y-%m', taken_at,'unixepoch','localtime') ym, COUNT(*) c
-                     FROM photos GROUP BY ym ORDER BY ym DESC LIMIT 12"""):
+                     FROM photos WHERE hidden=0 AND junk=0
+                     GROUP BY ym ORDER BY ym DESC LIMIT 12"""):
         ys, ms = m["ym"].split("-")
         ids = [r["id"] for r in db.q(
-            """SELECT id FROM photos WHERE strftime('%Y-%m', taken_at,'unixepoch','localtime')=?
+            """SELECT id FROM photos WHERE hidden=0 AND junk=0
+               AND strftime('%Y-%m', taken_at,'unixepoch','localtime')=?
                ORDER BY quality DESC LIMIT 60""", (m["ym"],))]
         out.append({"title": f"{ys}年 {int(ms)}月", "subtitle": f"{m['c']} 张 · 月度回忆",
                     "cover": _cover_of(ids), "kind": "month", "key": m["ym"],
                     "count": m["c"]})
     for pl in geo.place_list():
         ids = [r["photo_id"] for r in db.q(
-            "SELECT photo_id FROM photo_places WHERE place_id=?", (pl["id"],))]
+            """SELECT pp.photo_id FROM photo_places pp JOIN photos p ON p.id=pp.photo_id
+               WHERE pp.place_id=? AND p.hidden=0 AND p.junk=0""", (pl["id"],))]
         out.append({"title": pl["name"], "subtitle": f"{pl['photo_count']} 张 · 地点",
                     "cover": pl["cover_photo_id"], "kind": "place", "key": pl["id"],
                     "count": pl["photo_count"]})
@@ -236,16 +245,21 @@ def curated(reason=None):
             got[pid] = why
             order.append(pid)
     for r in db.q("""SELECT p.id FROM bursts b JOIN photos p ON p.id=b.photo_id
-                    WHERE b.is_pick=1 ORDER BY p.quality DESC LIMIT 40"""):
+                    WHERE b.is_pick=1 AND p.hidden=0 AND p.junk=0
+                    ORDER BY p.quality DESC LIMIT 40"""):
         add(r["id"], "连拍精选")
-    for r in db.q("SELECT id FROM photos WHERE quality>=68 ORDER BY quality DESC LIMIT 40"):
+    for r in db.q("""SELECT id FROM photos WHERE quality>=68 AND hidden=0 AND junk=0
+                     ORDER BY quality DESC LIMIT 40"""):
         add(r["id"], "画质优秀")
-    for r in db.q("SELECT id FROM photos WHERE is_favorite=1 ORDER BY taken_at DESC LIMIT 40"):
+    for r in db.q("""SELECT id FROM photos WHERE is_favorite=1 AND hidden=0 AND junk=0
+                     ORDER BY taken_at DESC LIMIT 40"""):
         add(r["id"], "已收藏")
-    for r in db.q("""SELECT id FROM photos WHERE rating>=4 ORDER BY rating DESC LIMIT 20"""):
+    for r in db.q("""SELECT id FROM photos WHERE rating>=4 AND hidden=0 AND junk=0
+                     ORDER BY rating DESC LIMIT 20"""):
         add(r["id"], "高分评价")
     if not order:
-        for r in db.q("SELECT id FROM photos ORDER BY quality DESC LIMIT 40"):
+        for r in db.q("""SELECT id FROM photos WHERE hidden=0 AND junk=0
+                         ORDER BY quality DESC LIMIT 40"""):
             add(r["id"], "自动推荐")
     if reason:
         order = [p for p in order if reason in got.get(p, "")]
