@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+pillow
+# 原生窗口外壳（Windows 走 Edge WebView2，Chromium 内核）；不装则退回浏览器打开
+pywebview
+# 可选：AI 语义搜索 / 打标（运行 scripts/download_models.py 后生效）
+# onnxruntime

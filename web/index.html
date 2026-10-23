@@ -1,0 +1,370 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>照片</title>
+<script>
+/* 先把明暗写进 html[data-theme]，CSS 加载时就是对的，不会先闪一下白底 */
+(function () {
+  try {
+    var m = localStorage.getItem("pa.mode") || "auto";
+    var dark = m === "dark" || (m === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+    var e = document.documentElement;
+    e.dataset.mode = m;
+    e.dataset.theme = dark ? "dark" : "light";
+    e.dataset.style = localStorage.getItem("pa.style") || "glass";
+    e.dataset.accent = localStorage.getItem("pa.accent") || "blue";
+  } catch (_) {}
+})();
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" style="display:flex;height:100%">
+  <aside id="sidebar">
+    <div class="side-head">照片</div>
+    <div id="nav-main"></div>
+    <div class="side-group">整理</div>
+    <div id="nav-extra"></div>
+    <div class="side-group">时间线</div>
+    <div id="timeline"></div>
+    <div class="side-foot">
+      <button class="side-item" id="btn-theme">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18h1.4a1.9 1.9 0 0 0 1.4-3.2 1.9 1.9 0 0 1 1.4-3.2H18a3 3 0 0 0 3-3A9 9 0 0 0 12 3z"/><circle cx="7.6" cy="11" r="1"/><circle cx="10" cy="7.4" r="1"/><circle cx="14.4" cy="7.6" r="1"/></svg>
+        <span class="t">外观与维护</span>
+      </button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header id="topbar">
+      <div id="view-title">图库</div>
+      <div class="grow"></div>
+      <div class="search">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2">
+          <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+        <input id="search" placeholder="搜索照片、人物、地点、事物">
+      </div>
+      <div class="seg" id="layout">
+        <button data-l="grid" class="on">网格</button><button data-l="round">圆形</button>
+      </div>
+      <div class="seg" id="zoom">
+        <button data-z="140">小</button><button data-z="190" class="on">中</button><button data-z="260">大</button>
+      </div>
+      <button class="btn" id="btn-select">选择</button>
+      <button class="btn" id="btn-scan">导入</button>
+      <button class="btn" id="btn-analyze">AI 分析</button>
+      <button class="btn" id="btn-extract">整理</button>
+      <button class="btn" id="btn-theme2">外观</button>
+      <button class="btn primary" id="btn-export">分享</button>
+    </header>
+    <div id="content"></div>
+  </main>
+</div>
+
+<div id="viewer">
+  <div class="v-stage">
+    <img id="v-img" alt="" draggable="false">
+    <img id="v-img2" alt="" draggable="false">
+    <video id="v-vid" controls playsinline preload="metadata"></video>
+    <canvas id="v-edit-cv"></canvas>
+    <div id="v-edit-mask" hidden><div id="v-edit-sel"></div></div>
+  </div>
+  <div class="v-top">
+    <div class="v-name" id="v-name"></div>
+    <div class="grow"></div>
+    <button class="icon-btn" id="v-ext" title="用系统播放器打开（含声音）" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 4h6v6"/><path d="M20 4l-8 8"/>
+        <path d="M18 14.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.5"/></svg>
+    </button>
+    <button class="icon-btn" id="v-edit" title="编辑 (E)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 20h4L18 10a2.8 2.8 0 0 0-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>
+    </button>
+    <button class="icon-btn" id="v-rotl" title="向左旋转 90°" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 8a9 9 0 1 1-1 7"/><path d="M4 3v5h5"/></svg>
+    </button>
+    <button class="icon-btn" id="v-rotr" title="向右旋转 90°" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 8a9 9 0 1 0 1 7"/><path d="M20 3v5h-5"/></svg>
+    </button>
+    <button class="icon-btn" id="v-fav" title="收藏 (F)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 20s-7-4.6-7-9.4A4.1 4.1 0 0 1 12 7a4.1 4.1 0 0 1 7 3.6C19 15.4 12 20 12 20z"/></svg>
+    </button>
+    <button class="icon-btn" id="v-live" title="播放实况" hidden>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+    </button>
+    <button class="icon-btn" id="v-hide" title="隐藏这张 (H)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><path d="M4 4l16 16"/></svg>
+    </button>
+    <button class="icon-btn" id="v-info-btn" title="信息 (I)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+    </button>
+    <button class="icon-btn" id="v-del" title="从相册移除 (Delete)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 7h16M9 7V5h6v2M6.5 7l.9 12h9.2l.9-12M10 11v5M14 11v5"/></svg>
+    </button>
+    <button class="icon-btn" id="v-close" title="关闭 (Esc)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <button class="v-nav" id="v-prev">‹</button>
+  <button class="v-nav" id="v-next">›</button>
+  <div class="v-edit" id="v-edit">
+    <div class="ve-head">
+      <span class="ve-title">编辑</span>
+      <span class="ve-size" id="ve-size"></span>
+      <span class="grow"></span>
+      <span class="ve-note">保存会另存为新照片，原图不会被改动</span>
+    </div>
+    <div class="ve-row">
+      <button class="ve-btn" id="ve-rot-l" title="向左旋转 90°">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3.2-6.9L3 8"/><path d="M3 3v5h5"/></svg>左转</button>
+      <button class="ve-btn" id="ve-rot-r" title="向右旋转 90°">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.2-6.9L21 8"/><path d="M21 3v5h-5"/></svg>右转</button>
+      <button class="ve-btn" id="ve-flip-h" title="水平翻转">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 7.5L4 12l4 4.5"/><path d="M16 7.5L20 12l-4 4.5"/></svg>水平翻转</button>
+      <button class="ve-btn" id="ve-flip-v" title="垂直翻转">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18"/><path d="M7.5 8L12 4l4.5 4"/><path d="M7.5 16L12 20l4.5-4"/></svg>垂直翻转</button>
+      <span class="ve-div"></span>
+      <button class="ve-btn" id="ve-crop" title="框选裁剪">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v15a1 1 0 0 0 1 1h15"/><path d="M3 6h15a1 1 0 0 1 1 1v14"/></svg>裁剪</button>
+      <span class="grow"></span>
+      <button class="ve-btn" id="ve-reset" title="放弃所有调整">重置</button>
+    </div>
+    <div class="ve-tune">
+      <label class="ve-sld"><span>亮度</span>
+        <input id="ve-b" type="range" min="40" max="160" step="1" value="100"><b id="ve-b-v">100</b></label>
+      <label class="ve-sld"><span>对比度</span>
+        <input id="ve-c" type="range" min="40" max="160" step="1" value="100"><b id="ve-c-v">100</b></label>
+      <label class="ve-sld"><span>饱和度</span>
+        <input id="ve-s" type="range" min="0" max="200" step="1" value="100"><b id="ve-s-v">100</b></label>
+    </div>
+    <div class="ve-crop" id="ve-crop" hidden>
+      <span>在画面上拖出要保留的区域</span>
+      <span class="grow"></span>
+      <button class="ve-btn" id="ve-crop-cancel">取消裁剪</button>
+      <button class="ve-btn primary" id="ve-crop-ok" disabled>应用裁剪</button>
+    </div>
+    <div class="ve-foot">
+      <button class="ve-btn" id="ve-cancel">取消</button>
+      <button class="ve-btn primary" id="ve-save">保存副本</button>
+    </div>
+  </div>
+  <aside class="v-info" id="v-info">
+    <div class="v-info-head">
+      <span class="v-info-name" id="v-info-name"></span>
+      <button class="icon-btn" id="v-info-close" title="关闭信息 (Esc)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="v-info-body" id="v-info-body"></div>
+  </aside>
+</div>
+
+<div id="dlg" class="dlg-mask">
+  <div class="dlg">
+    <h3>整理到文件夹</h3>
+    <p class="dlg-sub" id="dlg-sub"></p>
+    <label class="dlg-row"><span>目标文件夹</span>
+      <span class="pick-wrap">
+        <input id="dlg-dir" placeholder="点右侧「选择…」挑一个文件夹">
+        <button class="btn" id="dlg-browse">选择…</button>
+      </span></label>
+    <label class="dlg-row"><span>目录结构</span>
+      <select id="dlg-layout">
+        <option value="flat">全部平铺到一个文件夹</option>
+        <option value="day">按拍摄日期分子文件夹</option>
+        <option value="month">按月份分子文件夹</option>
+        <option value="person">按人物分子文件夹</option>
+        <option value="place">按地点分子文件夹</option>
+        <option value="tag">按事物分类（需 AI 语义标签）</option>
+      </select></label>
+    <label class="dlg-row"><span>操作方式</span>
+      <select id="dlg-mode">
+        <option value="copy">复制（原照片保留）</option>
+        <option value="move">剪切（从原位置移走）</option>
+      </select></label>
+    <label class="dlg-row"><span>文件名前缀</span>
+      <input id="dlg-prefix" placeholder="留空则保留原文件名"></label>
+    <div class="dlg-foot">
+      <button class="btn" id="dlg-cancel">取消</button>
+      <button class="btn primary" id="dlg-ok">开始整理</button>
+    </div>
+  </div>
+</div>
+
+<div id="dlg-import" class="dlg-mask">
+  <div class="dlg">
+    <h3>导入照片</h3>
+    <p class="dlg-sub">点「添加文件夹」在系统窗口里挑选，可添加多个（含移动硬盘）</p>
+    <div class="pick-list" id="imp-list"></div>
+    <div class="dlg-foot between">
+      <button class="btn" id="imp-add">＋ 添加文件夹</button>
+      <span>
+        <button class="btn" id="imp-cancel">取消</button>
+        <button class="btn primary" id="imp-ok">开始导入</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<div id="dlg-del" class="dlg-mask">
+  <div class="dlg">
+    <h3>删除照片</h3>
+    <p class="dlg-sub" id="dlg-del-sub"></p>
+    <div class="del-modes">
+      <label class="del-mode"><input type="radio" name="delmode" value="remove">
+        <b>从相册移除</b><span>只摘索引，原图留在硬盘；随时可以重新导入</span></label>
+      <label class="del-mode on"><input type="radio" name="delmode" value="trash" checked>
+        <b>移入最近删除</b><span>文件挪到 photoalbum_data/trash，30 天内可一键恢复</span></label>
+      <label class="del-mode danger"><input type="radio" name="delmode" value="purge">
+        <b>彻底删除原文件</b><span>从硬盘上抹掉，不可恢复；会写入操作日志</span></label>
+    </div>
+    <div class="dlg-foot">
+      <button class="btn" id="dlg-del-cancel">取消</button>
+      <button class="btn primary" id="dlg-del-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+  <div id="selbar">
+    <span class="sb-count" id="sb-count">未选择照片</span>
+    <span class="sb-div"></span>
+    <button class="sb-btn" id="sb-all">全选</button>
+    <button class="sb-btn" id="sb-fav">收藏</button>
+    <button class="sb-btn" id="sb-unfav">取消收藏</button>
+    <button class="sb-btn" id="sb-album">加入相册</button>
+    <button class="sb-btn" id="sb-tag">标签</button>
+    <button class="sb-btn" id="sb-rename">重命名</button>
+    <button class="sb-btn" id="sb-move">移动到文件夹…</button>
+    <button class="sb-btn" id="sb-share">分享</button>
+    <button class="sb-btn" id="sb-hide">隐藏</button>
+    <button class="sb-btn danger" id="sb-del">删除…</button>
+    <span class="sb-div"></span>
+    <button class="sb-btn primary" id="sb-done">完成</button>
+  </div>
+
+  <div id="dlg-bdel" class="dlg-mask">
+    <div class="dlg">
+      <h3>删除所选照片</h3>
+      <p class="dlg-sub" id="dlg-bdel-sub"></p>
+      <div class="del-modes">
+        <label class="del-mode"><input type="radio" name="bdelmode" value="remove">
+          <b>从相册移除</b><span>只摘索引，原图留在硬盘</span></label>
+        <label class="del-mode on"><input type="radio" name="bdelmode" value="trash" checked>
+          <b>移入最近删除（推荐）</b><span>文件挪到回收站，30 天内可恢复</span></label>
+        <label class="del-mode danger"><input type="radio" name="bdelmode" value="purge">
+          <b>彻底删除原文件</b><span>不可恢复，请确认已做好备份</span></label>
+      </div>
+      <div class="dlg-foot">
+        <button class="btn" id="dlg-bdel-cancel">取消</button>
+        <button class="btn primary" id="dlg-bdel-ok">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dlg-album" class="dlg-mask">
+    <div class="dlg">
+      <h3>加入相册</h3>
+      <p class="dlg-sub" id="dlg-album-sub">选一个已有相册，或直接新建</p>
+      <div class="album-pick" id="album-pick"></div>
+      <label class="dlg-row"><span>新建相册</span>
+        <input id="dlg-album-name" placeholder="例如：2025 夏天"></label>
+      <div class="dlg-foot">
+        <button class="btn" id="dlg-album-cancel">取消</button>
+        <button class="btn primary" id="dlg-album-ok">加入</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dlg-rename" class="dlg-mask">
+    <div class="dlg">
+      <h3>批量重命名</h3>
+      <p class="dlg-sub" id="dlg-rename-sub"></p>
+      <label class="dlg-row"><span>文件名模板</span>
+        <input id="dlg-rename-tpl" value="{date}_{seq}"></label>
+      <p class="dlg-note">可用变量：{date} 拍摄日期、{time} 时间、{name} 原名、{seq} 序号、{ext} 扩展名。
+        重名会自动追加 _1、_2，绝不覆盖已有文件；改名后可用 Ctrl+Z 撤回。</p>
+      <div class="dlg-foot">
+        <button class="btn" id="dlg-rename-cancel">取消</button>
+        <button class="btn primary" id="dlg-rename-ok">开始重命名</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dlg-tag" class="dlg-mask">
+    <div class="dlg">
+      <h3>批量标签</h3>
+      <p class="dlg-sub" id="dlg-tag-sub"></p>
+      <label class="dlg-row"><span>标签</span>
+        <input id="dlg-tag-name" placeholder="例如：旅行、家人、发票"></label>
+      <div class="dlg-foot between">
+        <button class="btn" id="dlg-tag-remove">移除这个标签</button>
+        <span>
+          <button class="btn" id="dlg-tag-cancel">取消</button>
+          <button class="btn primary" id="dlg-tag-ok">添加标签</button>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div id="dlg-theme" class="dlg-mask">
+    <div class="dlg wide">
+      <h3>外观与维护</h3>
+      <p class="dlg-sub">风格与配色只改界面，不动照片，也不影响索引</p>
+      <div class="theme-sec">
+        <div class="theme-label">风格</div>
+        <div class="style-grid" id="style-grid"></div>
+      </div>
+      <div class="theme-sec">
+        <div class="theme-label">明暗</div>
+        <div class="seg" id="mode-row">
+          <button data-mode="auto">跟随系统</button><button data-mode="light">浅色</button><button data-mode="dark">深色</button>
+        </div>
+      </div>
+      <div class="theme-sec">
+        <div class="theme-label">强调色</div>
+        <div class="accent-row" id="accent-row"></div>
+      </div>
+      <div class="theme-sec">
+        <div class="theme-label">索引维护</div>
+        <div class="maint" id="maint-box">正在检查…</div>
+        <div class="dlg-foot">
+          <button class="btn" id="maint-backup">立即备份索引</button>
+          <button class="btn" id="maint-refresh">重新检查</button>
+          <span class="grow"></span>
+          <button class="btn primary" id="theme-close">完成</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dlg-report" class="dlg-mask">
+    <div class="dlg">
+      <h3>导入报告</h3>
+      <div class="report-body" id="report-body"></div>
+      <div class="dlg-foot">
+        <button class="btn primary" id="report-close">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="jobbar" class="jobbar">
+  <div class="jb-fill" id="jb-fill"></div>
+  <div class="jb-text" id="jb-text"></div>
+</div>
+<div id="toast"></div><div id="busy"></div>
+<script src="theme.js"></script>
+<script src="orb.js"></script>
+<script src="app.js"></script></body>
+</html>

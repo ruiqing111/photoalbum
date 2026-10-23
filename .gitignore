@@ -1,0 +1,24 @@
+# 便携数据与用户照片：绝不提交
+photoalbum_data/
+test_photos/
+_smoketest*/
+*.db
+*.db-wal
+*.db-shm
+
+# 构建产物（GitHub 单文件上限 100MB，exe/安装包不进仓库）
+build/
+dist/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# 模型文件体积大，用 scripts/download_models.py 自行获取
+models/
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
