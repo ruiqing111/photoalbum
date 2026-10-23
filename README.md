@@ -4,6 +4,8 @@
 
 **简体中文 | [English](README.en.md)**
 
+**GitHub**：https://github.com/ruiqing111/photoalbum · **Gitee 镜像**：https://gitee.com/Yuan-rui-qing/photoalbum
+
 [![Release](https://img.shields.io/github/v/release/ruiqing111/photoalbum?label=release)](https://github.com/ruiqing111/photoalbum/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/ruiqing111/photoalbum/total)](https://github.com/ruiqing111/photoalbum/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-0078D4?logo=windows&logoColor=white)](#系统要求)
@@ -19,6 +21,8 @@
 |---|---|
 | `PhotoAlbum-1.2.2.exe` | 便携版，单文件，**下载后双击直接打开即用**（推荐） |
 | `PhotoAlbum-Setup-1.2.2.exe` | 安装版，创建桌面快捷方式与卸载项 |
+
+> 国内访问 GitHub 慢时，可用 [Gitee 镜像下载](https://gitee.com/Yuan-rui-qing/photoalbum/releases/tag/v1.2.2)：三个分卷 + `合并解压.bat`，全部下载到同一目录后双击 bat 即可得到 exe。
 
 下载后**双击 exe 直接打开就能用**：单文件、绿色便携，不需要安装 Python、不需要注册账号、不需要联网。
 索引、缩略图、回收站等数据全部生成在 exe 同级的 `photoalbum_data/` 目录里；把这个文件夹和 exe 一起拷到移动硬盘或另一台电脑，就能接着用。

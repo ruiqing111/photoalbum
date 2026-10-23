@@ -9,6 +9,8 @@
 
 **简体中文：[README.md](README.md)**
 
+**GitHub**: https://github.com/ruiqing111/photoalbum · **Gitee mirror**: https://gitee.com/Yuan-rui-qing/photoalbum
+
 ## Download and run
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows%20.exe-2ea44f?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/ruiqing111/photoalbum/releases/latest)
@@ -19,6 +21,8 @@ On the [Releases](https://github.com/ruiqing111/photoalbum/releases/latest) page
 |---|---|
 | `PhotoAlbum-1.2.2.exe` | Portable build — single file, **double-click to run** (recommended) |
 | `PhotoAlbum-Setup-1.2.2.exe` | Installer with desktop shortcut and uninstall entry |
+
+> If GitHub is slow from mainland China, use the [Gitee mirror release](https://gitee.com/Yuan-rui-qing/photoalbum/releases/tag/v1.2.2): three split volumes plus `合并解压.bat`; download all to one folder and double-click the bat to get the exe.
 
 No Python, no account, no network required. The index, thumbnails and trash are created in `photoalbum_data/` next to the executable — copy the folder together with the exe to a portable drive or another PC and keep going.
 
