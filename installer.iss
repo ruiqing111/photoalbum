@@ -3,7 +3,7 @@
 ; 产物：dist\照片相册_安装包.exe（双击即装，带卸载项、桌面与开始菜单快捷方式）
 
 #define AppName "照片相册"
-#define AppVersion "1.1.1"
+#define AppVersion "1.2.1"
 #define AppExeName "照片相册.exe"
 
 [Setup]
