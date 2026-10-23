@@ -28,6 +28,8 @@ No Python, no account, no network required. The index, thumbnails and trash are 
 
 ## Screenshots
 
+> Screenshots use a demo library: synthetic scenes plus the author's own photos, with no third-party assets.
+
 | Library · grid | Library · timeline |
 |:---:|:---:|
 | ![Library grid](docs/screenshots/01-library-grid.png) | ![Library timeline](docs/screenshots/02-library-timeline.png) |

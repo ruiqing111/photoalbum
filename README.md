@@ -29,6 +29,8 @@
 
 ## 截图
 
+> 截图来自演示图库：合成场景图 + 作者实拍照片，不含第三方素材。
+
 | 图库 · 网格 | 图库 · 时间线 |
 |:---:|:---:|
 | ![图库网格](docs/screenshots/01-library-grid.png) | ![图库时间线](docs/screenshots/02-library-timeline.png) |
