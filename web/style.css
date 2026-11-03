@@ -21,6 +21,9 @@
   --ease: cubic-bezier(.32, .72, 0, 1);
   --spring: cubic-bezier(.34, 1.56, .64, 1);
   --t-fast: .12s; --t-mid: .2s; --t-slow: .32s;
+  /* 画册风的展示字体：衬线标题 + 等宽元数据 */
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "Songti SC", "SimSun", "Noto Serif SC", serif;
+  --font-mono: "SFMono-Regular", "Cascadia Mono", "Consolas", "Courier New", monospace;
   /* 液态玻璃：只给结构性大面板用（侧栏/顶栏/对话框/浮栏）。
      磁贴绝不能用 backdrop-filter —— 上千张同时模糊会把 WebView2 拖死。 */
   --glass-blur: 30px;
@@ -996,6 +999,546 @@ html[data-style="comic"] #toast,
 html[data-style="comic"] .jb-text,
 html[data-style="comic"] .v-edit { background: #141414; border: 2px solid #fff; }
 html[data-style="comic"] .chip { border: 2px solid var(--cm-line); font-weight: 600; }
+
+/* ---------- 主题系统：画册（衬线标题 + 纸感 + 暗房） ----------
+   这一套不追求“更像原生 App”，而是像一本摄影画册：
+   纸色底、墨色字、衬线大标题、等宽小字元数据、无圆角的接触印相网格。
+   所有效果只作用在 atelier 这一个 style 上，不影响原来的玻璃/像素/漫画。 */
+html[data-style="atelier"] {
+  --radius: 4px;
+  --gap: 5px;
+  --bg: #f3eee5;
+  --bg-side: #ede7db;
+  --bg-elevated: #fbf8f1;
+  --text: #1d1a16;
+  --text-2: #5f574c;
+  --text-3: #8b8072;
+  --line: rgba(29, 26, 22, .14);
+  --hover: rgba(29, 26, 22, .055);
+  --glass-bg: rgba(251, 248, 241, .93);
+  --glass-bg-strong: #fbf8f1;
+  --glass-line: var(--line);
+  --glass-edge: rgba(255, 255, 255, .5);
+  --glass-inset: none;
+  --glass-drop: 0 28px 70px rgba(58, 42, 24, .2);
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, .45), 0 10px 24px rgba(60, 45, 30, .06);
+  --shadow-tile: 0 18px 38px rgba(40, 30, 20, .16);
+}
+html[data-theme="dark"][data-style="atelier"] {
+  --bg: #141210;
+  --bg-side: #191613;
+  --bg-elevated: #211d18;
+  --text: #f2ebdf;
+  --text-2: #b6a996;
+  --text-3: #877a68;
+  --line: rgba(242, 235, 223, .15);
+  --hover: rgba(255, 255, 255, .065);
+  --glass-bg: rgba(33, 29, 24, .94);
+  --glass-bg-strong: #211d18;
+  --glass-line: var(--line);
+  --glass-edge: rgba(255, 255, 255, .1);
+  --glass-inset: none;
+  --glass-drop: 0 28px 70px rgba(0, 0, 0, .5);
+  --shadow-card: inset 0 1px 0 rgba(255, 255, 255, .06), 0 12px 30px rgba(0, 0, 0, .35);
+  --shadow-tile: 0 18px 42px rgba(0, 0, 0, .5);
+  color-scheme: dark;
+}
+/* 画册风的强调色更“印刷”：降低饱和度，避免荧光蓝紫破坏纸感 */
+html[data-style="atelier"][data-accent="blue"] { --accent: #2f5d8a; }
+html[data-style="atelier"][data-accent="green"] { --accent: #4e6b4d; }
+html[data-style="atelier"][data-accent="rose"] { --accent: #a34a5e; }
+html[data-style="atelier"][data-accent="amber"] { --accent: #a96a2f; }
+html[data-style="atelier"][data-accent="violet"] { --accent: #6a4f7a; }
+html[data-style="atelier"][data-accent="graphite"] { --accent: #4f4b45; }
+html[data-theme="dark"][data-style="atelier"][data-accent="blue"] { --accent: #9fc3dd; }
+html[data-theme="dark"][data-style="atelier"][data-accent="green"] { --accent: #a8c7a2; }
+html[data-theme="dark"][data-style="atelier"][data-accent="rose"] { --accent: #e2a2ae; }
+html[data-theme="dark"][data-style="atelier"][data-accent="amber"] { --accent: #e7b57c; }
+html[data-theme="dark"][data-style="atelier"][data-accent="violet"] { --accent: #c9b3d8; }
+html[data-theme="dark"][data-style="atelier"][data-accent="graphite"] { --accent: #b8b2a8; }
+
+html[data-style="atelier"] body {
+  font-size: 13.5px;
+  letter-spacing: .01em;
+  background-color: var(--bg);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E"),
+    radial-gradient(70% 55% at 10% -8%, rgba(176, 106, 60, .1), transparent 70%),
+    radial-gradient(62% 50% at 100% 0%, rgba(47, 93, 138, .07), transparent 70%),
+    linear-gradient(180deg, #f7f2e9 0%, #efe9de 100%);
+  background-attachment: fixed;
+}
+html[data-theme="dark"][data-style="atelier"] body {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.065'/%3E%3C/svg%3E"),
+    radial-gradient(58% 46% at 8% 0%, rgba(180, 96, 44, .16), transparent 70%),
+    radial-gradient(48% 44% at 96% 100%, rgba(48, 86, 128, .12), transparent 70%),
+    linear-gradient(180deg, #15130f 0%, #100f0d 100%);
+}
+
+/* 画册的侧栏是一列“目录”：编号 + 名称 + 数量，图标退到幕后 */
+html[data-style="atelier"] #sidebar {
+  width: 244px;
+  background: var(--bg-side);
+  border-right: 1px solid var(--line);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, .35);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  counter-reset: nav;
+}
+html[data-style="atelier"] .side-head {
+  padding: 26px 12px 10px;
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: .1em;
+}
+html[data-style="atelier"] .side-head::after {
+  content: "PHOTO ARCHIVE";
+  display: block;
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: .24em;
+  color: var(--text-3);
+}
+html[data-style="atelier"] .side-group {
+  margin: 16px 0 2px;
+  padding: 12px 12px 0;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .18em;
+  color: var(--text-3);
+  border-top: 1px solid var(--line);
+  text-transform: uppercase;
+}
+html[data-style="atelier"] #nav-main .side-item,
+html[data-style="atelier"] #nav-extra .side-item {
+  counter-increment: nav;
+}
+html[data-style="atelier"] #nav-main .side-item::before,
+html[data-style="atelier"] #nav-extra .side-item::before {
+  content: counter(nav, decimal-leading-zero);
+  flex: none;
+  width: 19px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  color: var(--text-3);
+}
+html[data-style="atelier"] #nav-main .side-item svg,
+html[data-style="atelier"] #nav-extra .side-item svg { display: none; }
+html[data-style="atelier"] .side-item {
+  gap: 4px;
+  padding: 7px 7px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+html[data-style="atelier"] .side-item:hover { background: var(--hover); color: var(--text); }
+html[data-style="atelier"] .side-item.active {
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+}
+html[data-style="atelier"] .side-item.active::before { color: var(--bg); opacity: .55; }
+html[data-style="atelier"] .side-item.active .side-count { color: var(--bg); opacity: .6; }
+html[data-style="atelier"] .side-count {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .02em;
+}
+html[data-style="atelier"] .side-sub {
+  padding: 4px 10px 4px 31px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .02em;
+  color: var(--text-3);
+}
+html[data-style="atelier"] .side-sub:hover { color: var(--text); }
+html[data-style="atelier"] .side-foot { padding: 10px 0 0; border-top: 1px solid var(--line); }
+html[data-style="atelier"] .side-foot .side-item { color: var(--text-3); }
+html[data-style="atelier"] .side-foot .side-item::before { content: none; }
+
+/* 顶栏做成一张浮在纸面上的窄条，而不是横贯整窗的玻璃条 */
+html[data-style="atelier"] #topbar {
+  top: 12px;
+  margin: 12px 22px 0;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .4) inset, 0 12px 34px rgba(70, 50, 30, .1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-theme="dark"][data-style="atelier"] #topbar {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 12px 34px rgba(0, 0, 0, .35);
+}
+html[data-style="atelier"] #view-title {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: .04em;
+  max-width: 280px;
+}
+html[data-style="atelier"] #view-title::before {
+  content: "INDEX / ";
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: .16em;
+  color: var(--text-3);
+  vertical-align: 3px;
+}
+html[data-style="atelier"] .search {
+  flex: 0 1 235px;
+  padding: 4px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-style="atelier"] .search:focus-within {
+  background: transparent;
+  border-color: var(--accent);
+  box-shadow: none;
+}
+html[data-style="atelier"] .search input {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  letter-spacing: .03em;
+}
+html[data-style="atelier"] .search input::placeholder { color: var(--text-3); }
+html[data-style="atelier"] .seg {
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-style="atelier"] .seg button {
+  padding: 4px 8px;
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  color: var(--text-2);
+}
+html[data-style="atelier"] .seg button.on {
+  background: transparent;
+  color: var(--accent);
+  box-shadow: none;
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: -1px;
+}
+html[data-style="atelier"] .btn {
+  padding: 6px 11px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  color: var(--text);
+}
+html[data-style="atelier"] .btn:hover {
+  transform: none;
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+  box-shadow: none;
+}
+html[data-style="atelier"] .btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: none;
+}
+html[data-style="atelier"] .btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 82%, #000);
+  color: #fff;
+  border-color: transparent;
+}
+html[data-style="atelier"] #content { padding: 10px 22px 64px; counter-reset: sec; }
+html[data-style="atelier"] .view { animation: atelier-in .4s var(--ease); }
+@keyframes atelier-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* 概览：一条像版权页的统计栏 + 一张大封面 */
+html[data-style="atelier"] .stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  margin: 18px 0 6px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+html[data-style="atelier"] .stat {
+  min-width: 0;
+  padding: 16px 18px 14px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-style="atelier"] .stat:first-child { border-left: 0; padding-left: 0; }
+html[data-style="atelier"] .stat .n {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: -.02em;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+html[data-style="atelier"] .stat .l {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+html[data-style="atelier"] .hero {
+  height: 420px;
+  margin-top: 16px;
+  border-radius: 2px;
+  box-shadow: none;
+}
+html[data-style="atelier"] .hero::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(255, 255, 255, .34);
+  pointer-events: none;
+}
+html[data-style="atelier"] .hero .ov { padding: 34px 30px 30px; }
+html[data-style="atelier"] .hero .ov h3 {
+  margin-bottom: 8px;
+  font-family: var(--font-serif);
+  font-size: 42px;
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: .02em;
+}
+html[data-style="atelier"] .hero .ov p {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: .82;
+}
+html[data-style="atelier"] .sec-head {
+  counter-increment: sec;
+  margin: 38px 0 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+html[data-style="atelier"] .sec-head h2 {
+  font-family: var(--font-serif);
+  font-size: 25px;
+  font-weight: 400;
+  letter-spacing: .03em;
+}
+html[data-style="atelier"] .sec-head h2::before {
+  content: counter(sec, decimal-leading-zero) " — ";
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: var(--text-3);
+  margin-right: 9px;
+  vertical-align: 2px;
+}
+html[data-style="atelier"] .sec-head .more,
+html[data-style="atelier"] .sec-head .muted {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  color: var(--text-3);
+}
+html[data-style="atelier"] .sec-head .more { color: var(--accent); }
+html[data-style="atelier"] .card-img {
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+html[data-style="atelier"] .card:hover .card-img {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(50, 36, 20, .14);
+}
+html[data-style="atelier"] .card-meta .n1 {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 400;
+}
+html[data-style="atelier"] .card-meta .n2 {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .03em;
+  color: var(--text-3);
+}
+html[data-style="atelier"] .chip {
+  padding: 6px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .05em;
+}
+html[data-style="atelier"] .chip:hover {
+  transform: none;
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+/* 图库：接触印相式的紧排网格，日期做成衬线大字 */
+html[data-style="atelier"] #grid { gap: 5px; margin-top: 4px; }
+html[data-style="atelier"] .tile {
+  border-radius: 0;
+  background: var(--hover);
+  transition: none;
+}
+html[data-style="atelier"] .tile img { transition: transform .55s var(--ease), filter .4s var(--ease); }
+html[data-style="atelier"] .tile:hover {
+  transform: none;
+  border-radius: 0;
+  box-shadow: none;
+  z-index: 2;
+}
+html[data-style="atelier"] .tile:hover img { transform: scale(1.045); filter: saturate(1.04); }
+html[data-style="atelier"] .tile::after {
+  background: linear-gradient(transparent 52%, rgba(0, 0, 0, .62));
+  opacity: 0;
+}
+html[data-style="atelier"] .tile:hover::after { opacity: 1; }
+html[data-style="atelier"] .tile .bd {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .7);
+  opacity: .8;
+  transition: opacity var(--t-mid);
+}
+html[data-style="atelier"] .tile:hover .bd { opacity: 1; }
+html[data-style="atelier"] .tile .fav { font-family: var(--font-serif); }
+html[data-style="atelier"] .day-head {
+  padding: 22px 0 9px;
+  font-family: var(--font-serif);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: .02em;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(var(--bg) 78%, transparent);
+}
+html[data-style="atelier"] .day-head span {
+  margin-left: 12px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+html[data-style="atelier"] .load-more {
+  border-radius: 2px;
+  background: transparent;
+  border: 1px solid var(--line);
+  box-shadow: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .06em;
+}
+html[data-style="atelier"] .load-more:hover { background: var(--text); color: var(--bg); transform: none; }
+html[data-style="atelier"] .empty b { font-family: var(--font-serif); font-weight: 400; }
+
+/* 表盘在画册风里做成一张“暗房灯箱”：纸面包围一块深色观片台，
+   圆形照片才有发光和景深，浅色纸面上直接铺圆图会糊成一片。 */
+html[data-style="atelier"] #grid.orb-wrap {
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  background: radial-gradient(circle at 50% 44%, #2c261e 0%, #171411 58%, #0f0d0b 100%);
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, .55);
+}
+html[data-style="atelier"] #grid.orb-wrap::before {
+  background: radial-gradient(closest-side,
+    color-mix(in srgb, var(--accent) 16%, transparent), transparent 76%);
+}
+html[data-style="atelier"] .orb-node { box-shadow: 0 14px 34px rgba(0, 0, 0, .55); }
+html[data-style="atelier"] .orb-node img { border-color: rgba(255, 255, 255, .2); }
+html[data-style="atelier"] #grid.orb-wrap .orb-cap {
+  padding: 2px 8px;
+  border-radius: 0;
+  background: rgba(0, 0, 0, .35);
+  color: rgba(255, 255, 255, .65);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .08em;
+}
+html[data-style="atelier"] #grid.orb-wrap .orb-hint {
+  color: rgba(255, 255, 255, .55);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .08em;
+}
+html[data-style="atelier"] #grid.orb-wrap .orb-load { color: rgba(255, 255, 255, .65); }
+
+/* 弹窗与外观面板 */
+html[data-style="atelier"] .dlg {
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  box-shadow: var(--glass-drop);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-style="atelier"] .dlg::before,
+html[data-style="atelier"] #selbar::before { display: none; }
+html[data-style="atelier"] .style-card {
+  border-radius: 3px;
+  background: transparent;
+  border: 1px solid var(--line);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-style="atelier"] .style-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+html[data-style="atelier"] .style-card b { font-family: var(--font-serif); font-weight: 400; font-size: 14px; }
+.sc-prev[data-s="atelier"] {
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #f4efe6;
+  position: relative;
+}
+.sc-prev[data-s="atelier"]::before {
+  content: "Aa";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  color: #1d1a16;
+}
+/* 外观面板本身也用纸色，避免点开一个风格面板又跳回玻璃 */
+html[data-style="atelier"] #dlg-theme .dlg,
+html[data-style="atelier"] .style-card { color: var(--text); }
+
+/* 窄窗时统计栏退回两列，别把数字挤成一条 */
+@media (max-width: 980px) {
+  html[data-style="atelier"] .stat-row { grid-template-columns: repeat(2, 1fr); }
+  html[data-style="atelier"] .stat:nth-child(3) { border-left: 0; padding-left: 0; }
+  html[data-style="atelier"] .stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
 
 /* ---------- 后台任务进度（分析 / 扫描等长任务） ---------- */
 .jobbar { position: fixed; top: 0; left: 0; right: 0; z-index: 95;

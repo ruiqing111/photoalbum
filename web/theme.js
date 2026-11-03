@@ -6,6 +6,7 @@
  */
 (function () {
   const STYLES = [
+    ["atelier", "画册", "衬线 · 纸感 · 暗房"],
     ["glass", "液态玻璃", "半透明 · 多层光晕"],
     ["frost", "朦胧", "强模糊 · 整窗一体"],
     ["minimal", "简洁", "纯色 · 零模糊"],
@@ -26,7 +27,10 @@
 
   function apply(style, accent, m) {
     const root = document.documentElement;
-    const s = style || localStorage.getItem("pa.style") || "glass";
+    // 老版本会把默认风格写进 localStorage；加一个“用户是否主动选过”的标记，
+    // 没主动选过的人升级后看到新的画册风，主动选过的人保持原样。
+    const chosen = localStorage.getItem("pa.styleChosen") === "1";
+    const s = style || (chosen ? localStorage.getItem("pa.style") : null) || "atelier";
     const a = accent || localStorage.getItem("pa.accent") || "blue";
     const md = m || mode();
     root.dataset.style = s;
@@ -35,6 +39,7 @@
     root.dataset.theme = resolve(md);
     try {
       localStorage.setItem("pa.style", s);
+      if (style) localStorage.setItem("pa.styleChosen", "1");
       localStorage.setItem("pa.accent", a);
       localStorage.setItem("pa.mode", md);
     } catch (e) { /* 无痕模式写不了 localStorage，不耽误用 */ }

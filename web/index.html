@@ -13,7 +13,9 @@
     var e = document.documentElement;
     e.dataset.mode = m;
     e.dataset.theme = dark ? "dark" : "light";
-    e.dataset.style = localStorage.getItem("pa.style") || "glass";
+    var chosen = localStorage.getItem("pa.styleChosen") === "1";
+    var ps = chosen ? localStorage.getItem("pa.style") : null;
+    e.dataset.style = ps || "atelier";
     e.dataset.accent = localStorage.getItem("pa.accent") || "blue";
   } catch (_) {}
 })();

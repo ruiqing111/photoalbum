@@ -34,10 +34,10 @@ No Python, no account, no network required. The index, thumbnails and trash are 
 
 > Screenshots use a demo library made entirely of synthetic images; no real photos or personal data.
 
-| Library · grid | Library · timeline |
+| Library · grid | Overview · cover |
 |:---:|:---:|
-| ![Library grid](docs/screenshots/01-library-grid-synth.png) | ![Library timeline](docs/screenshots/02-library-timeline-synth.png) |
-| Adaptive square grid, sticky date sections, quality scores | Jump to any year/month on the left, infinite scrolling on the right |
+| ![Library grid](docs/screenshots/01-library-grid-synth.png) | ![Overview cover](docs/screenshots/02-overview-synth.png) |
+| Contact-sheet grid, sticky date sections, serif date headers | Colophon-style stats, serif cover title, editorial layout |
 
 | Watch-face view | Watch-face view · center lens |
 |:---:|:---:|
@@ -73,7 +73,7 @@ No Python, no account, no network required. The index, thumbnails and trash are 
 
 **Interface**
 
-- 5 styles: liquid glass / frosted translucent / minimal / pixel / comic
+- 6 styles: Atelier (default, editorial serif + paper texture) / liquid glass / frosted translucent / minimal / pixel / comic
 - 6 accent colors × light/dark/system theme, applied to the whole window and persisted locally
 
 **Sharing and export**
@@ -210,7 +210,7 @@ Not needed. Download the exe from Releases and double-click.
 - [x] Trash / operation log / undo / hidden
 - [x] Albums, folders, duplicates, events, trips
 - [x] Live Photo pairing and playback
-- [x] Watch-face view, five themes and light/dark mode
+- [x] Watch-face view, six themes and light/dark mode
 - [x] PyInstaller single-file portable exe
 - [x] App icon + Inno Setup installer
 - [ ] Optional ffmpeg transcoding/trimming (+60 MB)

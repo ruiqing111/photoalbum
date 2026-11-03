@@ -2186,7 +2186,7 @@ $("#dlg-ok").onclick = async () => {
 
 /* ---------------- 外观与维护 ---------------- */
 function renderThemeDlg() {
-  const curStyle = document.documentElement.dataset.style || "glass";
+  const curStyle = document.documentElement.dataset.style || "atelier";
   const curAccent = document.documentElement.dataset.accent || "blue";
   const curMode = window.PATheme.mode();
   $("#style-grid").innerHTML = STYLES.map(([id, name, desc]) =>
