@@ -37,7 +37,14 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # 这些包是环境里顺带装上的（matplotlib/PySide6/IPython/pygame 等），
+    # 应用本身不用；不收进来既能让 exe 小很多，也能避免 PyInstaller 在
+    # 收集 Qt 插件时崩溃。
+    excludes=[
+        'matplotlib', 'PySide6', 'PySide2', 'PyQt5', 'PyQt6',
+        'IPython', 'jedi', 'pygame', 'notebook', 'jupyter',
+        'zmq', 'nbformat', 'pytest',
+    ],
     noarchive=False,
     optimize=0,
 )
